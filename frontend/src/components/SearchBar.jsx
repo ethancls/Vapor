@@ -50,15 +50,16 @@ export default function SearchBar() {
   }
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', flexShrink: 0 }}>
+    <div ref={containerRef} className="global-search" style={{ position: 'relative', flexShrink: 0, minWidth: 0 }}>
       {/* Trigger */}
       <button
         onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 50) }}
+        className="global-search-trigger"
         style={{
-          width: 200, display: 'flex', alignItems: 'center', gap: 9,
+          width: 'clamp(140px, 23vw, 200px)', display: 'flex', alignItems: 'center', gap: 9,
           background: 'var(--card-2)', border: '1px solid var(--border)',
           borderRadius: 10, padding: '0 13px', cursor: 'text',
-          color: 'var(--text-muted)', transition: 'border-color 0.15s',
+          color: 'var(--text-secondary)', transition: 'border-color 0.15s',
           fontSize: 13, height: 36, lineHeight: 1,
         }}
         onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-hover)'}
@@ -66,25 +67,25 @@ export default function SearchBar() {
       >
         <Search size={13} style={{ flexShrink: 0 }} />
         <span style={{ flex: 1, textAlign: 'left', fontSize: 12.5 }}>Search…</span>
-        <kbd style={{
+        <kbd className="global-search-kbd" style={{
           fontSize: 10, fontFamily: 'IBM Plex Mono',
           background: 'var(--card-3)', border: '1px solid var(--border)',
-          borderRadius: 5, padding: '2px 5px', color: 'var(--text-muted)', flexShrink: 0,
+          borderRadius: 5, padding: '2px 5px', color: 'var(--text-secondary)', flexShrink: 0,
         }}>⌘K</kbd>
       </button>
 
       {/* Dropdown — wider, right-anchored so it doesn't clip off screen */}
       {open && (
-        <div style={{
+        <div className="global-search-dropdown" style={{
           position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 500,
-          width: 460,
+          width: 'min(460px, calc(100vw - 36px))',
           background: 'var(--card-1)', border: '1px solid var(--border)',
           borderRadius: 14, boxShadow: '0 16px 48px rgba(0,0,0,0.55)',
           overflow: 'hidden',
         }}>
           {/* Input inside dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-            <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <Search size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
             <input
               ref={inputRef}
               value={query}
@@ -98,7 +99,7 @@ export default function SearchBar() {
               }}
             />
             {query && (
-              <button onClick={() => setQuery('')} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', display:'flex' }}>
+              <button onClick={() => setQuery('')} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-secondary)', display:'flex' }}>
                 <X size={13} />
               </button>
             )}
@@ -107,12 +108,12 @@ export default function SearchBar() {
           {/* Results */}
           <div style={{ maxHeight: 320, overflowY: 'auto' }}>
             {!q && (
-              <p style={{ padding: '16px 14px', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'IBM Plex Mono', margin: 0 }}>
+              <p style={{ padding: '16px 14px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'IBM Plex Mono', margin: 0 }}>
                 {instances.length} instance{instances.length !== 1 ? 's' : ''} — type to search
               </p>
             )}
             {q && results.length === 0 && (
-              <p style={{ padding: '16px 14px', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'IBM Plex Mono', margin: 0 }}>
+              <p style={{ padding: '16px 14px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'IBM Plex Mono', margin: 0 }}>
                 No results for "{q}"
               </p>
             )}
@@ -141,7 +142,7 @@ export default function SearchBar() {
                   <p className="mono" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1, marginBottom: 3 }}>
                     {inst.name}
                   </p>
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1 }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1 }}>
                     {inst.image || '—'}
                     {inst.ipv4?.length ? ` · ${inst.ipv4[0]}` : ''}
                   </p>

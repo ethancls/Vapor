@@ -21,7 +21,7 @@ export default function Settings() {
     <div className="page">
       <div style={{ marginBottom: 28 }}>
         <h1 className="page-title">Settings</h1>
-        <p className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>
+        <p className="mono" style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
           Customize Vapor to your preferences
         </p>
       </div>
@@ -31,7 +31,7 @@ export default function Settings() {
         {/* Appearance */}
         <div className="card">
           <p className="section-title" style={{ marginBottom: 4 }}>Appearance</p>
-          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>Choose how Vapor looks</p>
+          <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 18 }}>Choose how Vapor looks</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {THEMES.map(({ value, label, Icon, desc }) => (
               <button
@@ -53,13 +53,13 @@ export default function Settings() {
                   background: theme === value ? 'var(--accent)' : 'var(--card-3)',
                   border: '1px solid var(--border)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: theme === value ? '#0a0a0a' : 'var(--text-muted)',
+                  color: theme === value ? '#0a0a0a' : 'var(--text-secondary)',
                 }}>
                   <Icon size={15} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1, marginBottom: 4, color: 'var(--text-primary)' }}>{label}</p>
-                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1 }}>{desc}</p>
+                  <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1 }}>{desc}</p>
                 </div>
                 {theme === value && <Check size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
               </button>
@@ -70,7 +70,7 @@ export default function Settings() {
         {/* Keyboard Shortcuts */}
         <div className="card">
           <p className="section-title" style={{ marginBottom: 4 }}>Keyboard Shortcuts</p>
-          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 18 }}>Available shortcuts across the app</p>
+          <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 18 }}>Available shortcuts across the app</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {SHORTCUTS.map(({ keys, label }) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

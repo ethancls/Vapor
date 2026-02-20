@@ -1,19 +1,19 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useQuery, useQueries } from '@tanstack/react-query'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { api } from '../api/client'
-
-function fmt(bytes) {
-  if (!bytes) return '0'
-  return `${(bytes / (1024 ** 2)).toFixed(0)} MB`
-}
+import CustomSelect from './CustomSelect'
 
 const METRICS = [
-  { key: 'ram_used', label: 'RAM Used', unit: 'MB', transform: v => v ? (v / (1024 ** 2)).toFixed(1) : 0 },
-  { key: 'disk_used', label: 'Disk Used', unit: 'GB', transform: v => v ? (v / (1024 ** 3)).toFixed(2) : 0 },
+  { key: 'ram_used', label: 'RAM Used', unit: 'MB', transform: v => v ? Number((v / (1024 ** 2)).toFixed(1)) : 0 },
+  { key: 'cpu', label: 'vCPUs', unit: 'vCPU', transform: v => Number(v || 0) },
+  { key: 'disk_used', label: 'Disk Used', unit: 'GB', transform: v => v ? Number((v / (1024 ** 3)).toFixed(2)) : 0 },
 ]
 
-function CustomTooltip({ active, payload, label, unit }) {
+const ALL_VALUE = '__all__'
+const SERIES_COLORS = ['#b5f23d', '#60a5fa', '#f472b6', '#fb923c', '#a78bfa', '#34d399', '#f87171', '#22d3ee', '#facc15', '#c084fc']
+
+function SingleTooltip({ active, payload, label, unit }) {
   if (!active || !payload?.length) return null
   const val = payload[0]?.value
   const prev = payload[0]?.payload?.prev
@@ -34,62 +34,153 @@ function CustomTooltip({ active, payload, label, unit }) {
   )
 }
 
-export default function ResourceChart({ instances = [] }) {
-  const [selectedVm, setSelectedVm] = useState(instances[0]?.name ?? '')
-  const [metricIdx, setMetricIdx] = useState(0)
-  const metric = METRICS[metricIdx]
+function MultiTooltip({ active, payload, label, unit }) {
+  if (!active || !payload?.length) return null
+  const rows = payload
+    .filter(p => p.value != null)
+    .sort((a, b) => Number(b.value) - Number(a.value))
 
-  const vmName = selectedVm || instances[0]?.name
-  const { data } = useQuery({
-    queryKey: ['history', vmName],
-    queryFn: () => api.getHistory(vmName),
-    enabled: !!vmName,
+  return (
+    <div style={{
+      background: 'var(--card-3)', border: '1px solid var(--border)',
+      borderRadius: 10, padding: '10px 14px', fontSize: 12, fontFamily: 'IBM Plex Mono', minWidth: 170,
+    }}>
+      <p style={{ margin: 0, color: 'var(--text-secondary)', marginBottom: 8 }}>{label}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {rows.map((row) => (
+          <div key={row.name} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 3, background: row.color, flexShrink: 0 }} />
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</span>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+              {unit === 'vCPU' ? Number(row.value).toFixed(0) : Number(row.value).toFixed(unit === 'MB' ? 1 : 2)} {unit}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default function ResourceChart({ instances = [] }) {
+  const [selectedVm, setSelectedVm] = useState(ALL_VALUE)
+  const [metricKey, setMetricKey] = useState(METRICS[0].key)
+  const metric = METRICS.find(m => m.key === metricKey) ?? METRICS[0]
+  const isAll = selectedVm === ALL_VALUE
+
+  const { data: singleData } = useQuery({
+    queryKey: ['history', selectedVm],
+    queryFn: () => api.getHistory(selectedVm),
+    enabled: !isAll && !!selectedVm,
     refetchInterval: 6000,
   })
+  const multiQueries = useQueries({
+    queries: instances.map(inst => ({
+      queryKey: ['history', inst.name],
+      queryFn: () => api.getHistory(inst.name),
+      enabled: isAll,
+      refetchInterval: 6000,
+      staleTime: 4000,
+    })),
+  })
 
-  const raw = data?.history ?? []
+  const raw = singleData?.history ?? []
   const chartData = raw.map((p, i) => ({
     ts: new Date(p.ts).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    value: parseFloat(metric.transform(p[metric.key])),
-    prev: i > 0 ? parseFloat(metric.transform(raw[i - 1][metric.key])) : null,
+    value: metric.transform(p[metric.key]),
+    prev: i > 0 ? metric.transform(raw[i - 1][metric.key]) : null,
   }))
+
+  const allChartData = useMemo(() => {
+    if (!isAll || instances.length === 0) return []
+    const byTs = new Map()
+
+    instances.forEach((inst, idx) => {
+      const history = multiQueries[idx]?.data?.history ?? []
+      history.forEach((point) => {
+        const rawTs = point.ts
+        if (!byTs.has(rawTs)) {
+          byTs.set(rawTs, {
+            tsRaw: rawTs,
+            ts: new Date(rawTs).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          })
+        }
+        byTs.get(rawTs)[inst.name] = metric.transform(point[metric.key])
+      })
+    })
+
+    return Array.from(byTs.values()).sort((a, b) => new Date(a.tsRaw).getTime() - new Date(b.tsRaw).getTime())
+  }, [instances, isAll, metric, metric.key, multiQueries])
+
+  const vmOptions = [{ value: ALL_VALUE, label: 'All instances' }, ...instances.map(i => ({ value: i.name, label: i.name }))]
+  const metricOptions = METRICS.map(m => ({ value: m.key, label: m.label }))
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 10, flexWrap: 'wrap' }}>
+      <div className="resource-chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 10, flexWrap: 'wrap' }}>
         <p className="section-title">Resource History</p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <select
-            value={vmName}
-            onChange={e => setSelectedVm(e.target.value)}
-            style={{
-              background: 'var(--card-2)', color: 'var(--text-secondary)',
-              border: '1px solid var(--border)', borderRadius: 8,
-              padding: '5px 10px', fontSize: 12, fontFamily: 'IBM Plex Mono',
-              cursor: 'pointer', outline: 'none',
-            }}
-          >
-            {instances.map(i => <option key={i.name} value={i.name}>{i.name}</option>)}
-          </select>
-          <select
-            value={metricIdx}
-            onChange={e => setMetricIdx(Number(e.target.value))}
-            style={{
-              background: 'var(--card-2)', color: 'var(--text-secondary)',
-              border: '1px solid var(--border)', borderRadius: 8,
-              padding: '5px 10px', fontSize: 12, fontFamily: 'IBM Plex Mono',
-              cursor: 'pointer', outline: 'none',
-            }}
-          >
-            {METRICS.map((m, i) => <option key={m.key} value={i}>{m.label}</option>)}
-          </select>
+        <div className="resource-chart-controls" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: 'min(100%, 420px)' }}>
+          <CustomSelect
+            value={selectedVm}
+            onChange={setSelectedVm}
+            options={vmOptions}
+            placeholder="Select VM…"
+            searchable
+            dropdownWidth="content"
+            style={{ minWidth: 140, flex: '1 1 180px' }}
+          />
+          <CustomSelect
+            value={metricKey}
+            onChange={setMetricKey}
+            options={metricOptions}
+            style={{ minWidth: 120, flex: '1 1 140px' }}
+          />
         </div>
       </div>
 
-      {chartData.length === 0 ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--text-muted)', fontSize: 12, fontFamily: 'IBM Plex Mono' }}>
+      {(!isAll && chartData.length === 0) || (isAll && allChartData.length === 0) ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--text-secondary)', fontSize: 12, fontFamily: 'IBM Plex Mono' }}>
           No data yet — waiting for first poll
         </div>
+      ) : isAll ? (
+        <>
+          <ResponsiveContainer width="100%" height={230}>
+            <AreaChart data={allChartData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+              <defs>
+                {instances.map((inst, i) => (
+                  <linearGradient key={`grad-${inst.name}`} id={`all-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={SERIES_COLORS[i % SERIES_COLORS.length]} stopOpacity={0.18} />
+                    <stop offset="95%" stopColor={SERIES_COLORS[i % SERIES_COLORS.length]} stopOpacity={0.01} />
+                  </linearGradient>
+                ))}
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="ts" tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} />
+              <Tooltip content={<MultiTooltip unit={metric.unit} />} />
+              {instances.map((inst, i) => (
+                <Area
+                  key={inst.name}
+                  type="monotone"
+                  dataKey={inst.name}
+                  stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+                  strokeWidth={2}
+                  fill={`url(#all-grad-${i})`}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+          <div style={{ display: 'flex', gap: 18, marginTop: 10, flexWrap: 'wrap' }}>
+            {instances.map((inst, i) => (
+              <div key={inst.name} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 3, background: SERIES_COLORS[i % SERIES_COLORS.length], flexShrink: 0 }} />
+                <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{inst.name}</span>
+              </div>
+            ))}
+          </div>
+        </>
       ) : (
         <ResponsiveContainer width="100%" height={200}>
           <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
@@ -102,7 +193,7 @@ export default function ResourceChart({ instances = [] }) {
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
             <XAxis dataKey="ts" tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
             <YAxis tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} />
-            <Tooltip content={<CustomTooltip unit={metric.unit} />} />
+            <Tooltip content={<SingleTooltip unit={metric.unit} />} />
             <Area type="monotone" dataKey="value" stroke="#b5f23d" strokeWidth={2} fill="url(#grad)" dot={false} activeDot={{ r: 4, fill: '#b5f23d' }} />
           </AreaChart>
         </ResponsiveContainer>

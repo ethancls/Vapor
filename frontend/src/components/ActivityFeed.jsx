@@ -3,12 +3,12 @@ import { Play, Square, Pause, Trash2, Rocket, Camera, Activity } from 'lucide-re
 import { useActivity } from '../hooks/useActivity'
 
 const ACTION_META = {
-  start:    { Icon: Play,     color: 'var(--running)',  bg: 'rgba(181,242,61,0.08)'  },
-  stop:     { Icon: Square,   color: 'var(--stopped)',  bg: 'rgba(240,71,71,0.08)'   },
-  suspend:  { Icon: Pause,    color: 'var(--suspended)',bg: 'rgba(255,159,10,0.08)'  },
-  delete:   { Icon: Trash2,   color: '#666',            bg: 'rgba(255,255,255,0.04)' },
-  launch:   { Icon: Rocket,   color: '#60a5fa',         bg: 'rgba(96,165,250,0.08)'  },
-  snapshot: { Icon: Camera,   color: '#a78bfa',         bg: 'rgba(167,139,250,0.08)' },
+  start:    { Icon: Play,     color: 'var(--running)',   bg: 'rgba(181,242,61,0.08)',  accent: '#b5f23d' },
+  stop:     { Icon: Square,   color: 'var(--stopped)',   bg: 'rgba(240,71,71,0.08)',   accent: '#f04747' },
+  suspend:  { Icon: Pause,    color: 'var(--suspended)', bg: 'rgba(255,159,10,0.08)',  accent: '#ff9f0a' },
+  delete:   { Icon: Trash2,   color: '#555',             bg: 'rgba(255,255,255,0.04)', accent: '#555'    },
+  launch:   { Icon: Rocket,   color: '#60a5fa',          bg: 'rgba(96,165,250,0.08)',  accent: '#60a5fa' },
+  snapshot: { Icon: Camera,   color: '#a78bfa',          bg: 'rgba(167,139,250,0.08)', accent: '#a78bfa' },
 }
 
 const FILTERS = ['ALL', 'START', 'STOP', 'LAUNCH', 'SNAPSHOT']
@@ -28,65 +28,116 @@ export default function ActivityFeed() {
   const { data, isLoading } = useActivity(100)
   const all = data?.activity ?? []
   const filtered = filter === 'ALL' ? all : all.filter(e => e.action?.toUpperCase() === filter)
-  const grouped = groupByDate(filtered.slice(0, 24))
+  const grouped = groupByDate(filtered.slice(0, 40))
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        <Activity size={14} style={{ color: 'var(--text-muted)' }} />
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <p className="section-title">Recent Activity</p>
+        <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-secondary)' }}>
+          {all.length} event{all.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 5, marginBottom: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 5, marginBottom: 18, flexWrap: 'wrap' }}>
         {FILTERS.map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`filter-pill${filter === f ? ' active' : ''}`}
-            style={{ fontSize: 10.5, padding: '4px 9px' }}
+            style={{ fontSize: 10.5, padding: '4px 10px' }}
           >{f}</button>
         ))}
       </div>
 
       {/* Feed */}
-      <div style={{ flex: 1, overflowY: 'auto', marginRight: -4, paddingRight: 4 }}>
-        {isLoading && <p className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Loading…</p>}
-        {!isLoading && filtered.length === 0 && (
-          <p className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>No activity yet</p>
-        )}
-        {Object.entries(grouped).map(([date, entries]) => (
-          <div key={date} style={{ marginBottom: 12 }}>
-            <p className="section-label" style={{ marginBottom: 7 }}>{date}</p>
-            {entries.map((e, i) => {
-              const meta = ACTION_META[e.action] ?? { Icon: Activity, color: 'var(--text-secondary)', bg: 'rgba(255,255,255,0.04)' }
-              const time = new Date(e.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
-              return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 9,
-                  padding: '7px 0', borderBottom: '1px solid var(--border)',
-                }}>
-                  <div style={{
-                    width: 27, height: 27, borderRadius: 7, flexShrink: 0,
-                    background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: meta.color,
-                  }}>
-                    <meta.Icon size={11} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p className="mono" style={{ fontSize: 12, fontWeight: 600, lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {e.vm_name}
-                    </p>
-                    <p style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 3, lineHeight: 1, textTransform: 'capitalize' }}>
-                      {e.action}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-                    <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1 }}>{time}</span>
-                    <span style={{ fontSize: 9.5, fontWeight: 700, lineHeight: 1, color: e.status === 'success' ? 'var(--running)' : 'var(--stopped)' }}>
-                      {e.status}
-                    </span>
-                  </div>
+      <div style={{ overflowY: 'auto', maxHeight: 400 }}>
+        {isLoading && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[...Array(5)].map((_, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
+                <div className="skeleton" style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div className="skeleton" style={{ width: '55%', height: 12, borderRadius: 6, marginBottom: 7 }} />
+                  <div className="skeleton" style={{ width: '35%', height: 10, borderRadius: 6 }} />
                 </div>
-              )
-            })}
+                <div className="skeleton" style={{ width: 36, height: 10, borderRadius: 6 }} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && filtered.length === 0 && (
+          <div style={{ padding: '32px 0', textAlign: 'center' }}>
+            <p className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>No activity yet</p>
+          </div>
+        )}
+
+        {!isLoading && Object.entries(grouped).map(([date, entries]) => (
+          <div key={date} style={{ marginBottom: 20 }}>
+            <p className="section-label" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {date}
+              <span style={{ flex: 1, height: 1, background: 'var(--border)', display: 'block' }} />
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {entries.map((e, i) => {
+                const meta = ACTION_META[e.action] ?? { Icon: Activity, color: 'var(--text-secondary)', bg: 'rgba(255,255,255,0.04)', accent: '#555' }
+                const time = new Date(e.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
+                const success = e.status === 'success'
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    borderLeft: `3px solid ${meta.accent}22`,
+                    background: 'transparent',
+                    transition: 'background 0.1s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                      background: meta.bg,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: meta.color,
+                      border: `1px solid ${meta.accent}22`,
+                    }}>
+                      <meta.Icon size={12} />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p className="mono" style={{
+                        fontSize: 12.5, fontWeight: 600, lineHeight: 1,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        color: 'var(--text-primary)', marginBottom: 4,
+                      }}>
+                        {e.vm_name}
+                      </p>
+                      <p style={{
+                        fontSize: 11, color: 'var(--text-secondary)',
+                        lineHeight: 1, textTransform: 'capitalize',
+                      }}>
+                        {e.action}
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                      <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-secondary)', lineHeight: 1 }}>{time}</span>
+                      <span style={{
+                        fontSize: 9.5, fontWeight: 700, lineHeight: 1,
+                        color: success ? 'var(--running)' : 'var(--stopped)',
+                        background: success ? 'rgba(181,242,61,0.08)' : 'rgba(240,71,71,0.08)',
+                        padding: '2px 6px', borderRadius: 100,
+                      }}>
+                        {e.status}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         ))}
       </div>

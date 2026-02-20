@@ -1,22 +1,7 @@
 import { useState } from 'react'
-import { TriangleAlert } from 'lucide-react'
+import { Copy, Check } from 'lucide-react'
 import Modal from './Modal'
 
-/**
- * Confirmation modal for destructive actions.
- *
- * variant='confirm'  — two-step: user clicks once, button turns red, click again to confirm
- * variant='name'     — user must type `confirmValue` exactly before button enables
- *
- * Props:
- *   title        string
- *   description  string | ReactNode
- *   confirmLabel string  (default "Delete")
- *   confirmValue string  (required for variant='name')
- *   variant      'confirm' | 'name'
- *   onConfirm    async () => void
- *   onClose      () => void
- */
 export default function ConfirmModal({
   title,
   description,
@@ -27,19 +12,30 @@ export default function ConfirmModal({
   onClose,
 }) {
   const [input, setInput] = useState('')
-  const [step, setStep] = useState(0)   // for variant='confirm': 0=ready, 1=armed
+  const [step, setStep] = useState(0)   // 0=ready, 1=armed (both variants)
   const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  function doCopy() {
+    if (!confirmValue) return
+    navigator.clipboard.writeText(confirmValue).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    })
+  }
 
   const nameMatch = variant === 'name' ? input === confirmValue : true
-  const canConfirm = variant === 'name' ? nameMatch : step === 1
+  const canArm = variant === 'name' ? nameMatch : true
 
   async function handleClick() {
-    if (variant === 'confirm' && step === 0) { setStep(1); return }
-    if (!canConfirm) return
+    if (!canArm) return
+    if (step === 0) { setStep(1); return }
     setLoading(true)
     try { await onConfirm() } finally { setLoading(false) }
     onClose()
   }
+
+  const armed = step === 1
 
   return (
     <Modal
@@ -50,61 +46,71 @@ export default function ConfirmModal({
         <>
           <button className="btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
           <button
-            className="btn-danger"
             onClick={handleClick}
-            disabled={loading || (variant === 'name' && !nameMatch)}
+            disabled={loading || !canArm}
             style={{
-              background: step === 1 ? 'rgba(240,71,71,0.25)' : undefined,
-              borderColor: step === 1 ? 'rgba(240,71,71,0.5)' : undefined,
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              padding: '0 18px', height: 36, borderRadius: 'var(--r-sm)',
+              border: '1px solid',
+              cursor: loading || !canArm ? 'not-allowed' : 'pointer',
+              fontFamily: 'Syne', fontWeight: 700, fontSize: 13,
+              whiteSpace: 'nowrap', lineHeight: 1,
+              transition: 'background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s',
+              ...(armed ? {
+                background: 'var(--stopped)',
+                borderColor: 'var(--stopped)',
+                color: '#fff',
+              } : {
+                background: 'rgba(240,71,71,0.12)',
+                borderColor: 'rgba(240,71,71,0.22)',
+                color: 'var(--stopped)',
+              }),
+              opacity: loading || !canArm ? 0.45 : 1,
             }}
           >
-            {loading ? 'Working…'
-              : variant === 'confirm' && step === 0 ? confirmLabel
-              : `Confirm ${confirmLabel}`}
+            {loading ? 'Working…' : armed ? 'Confirm?' : confirmLabel}
           </button>
         </>
       }
     >
-      {/* Warning icon */}
-      <div style={{ display: 'flex', gap: 14, marginBottom: description ? 16 : 0 }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-          background: 'rgba(240,71,71,0.12)', border: '1px solid rgba(240,71,71,0.22)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--stopped)',
-        }}>
-          <TriangleAlert size={18} />
-        </div>
-        <div>
-          {description && (
-            <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>
-              {description}
-            </p>
-          )}
-        </div>
-      </div>
+      {description && (
+        <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0, marginBottom: variant === 'name' ? 16 : 0 }}>
+          {description}
+        </p>
+      )}
 
-      {/* Type-to-confirm */}
       {variant === 'name' && confirmValue && (
-        <div style={{ marginTop: 16 }}>
-          <label className="input-label">
-            Type <span style={{ fontFamily:'IBM Plex Mono', color:'var(--accent)' }}>{confirmValue}</span> to confirm
-          </label>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <label className="input-label" style={{ margin: 0 }}>
+              Type <span className="mono" style={{ color: 'var(--text-primary)' }}>{confirmValue}</span> to confirm
+            </label>
+            <button
+              type="button"
+              onClick={doCopy}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
+                color: copied ? 'var(--running)' : 'var(--text-secondary)',
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 11, fontFamily: 'Syne', fontWeight: 600,
+                borderRadius: 5, transition: 'color 0.15s',
+              }}
+              onMouseEnter={e => { if (!copied) e.currentTarget.style.color = 'var(--text-primary)' }}
+              onMouseLeave={e => { if (!copied) e.currentTarget.style.color = 'var(--text-secondary)' }}
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
           <input
             className="input"
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => { setInput(e.target.value); if (step === 1) setStep(0) }}
             placeholder={confirmValue}
             autoFocus
-            onKeyDown={e => { if (e.key === 'Enter' && canConfirm && !loading) handleClick() }}
+            onKeyDown={e => { if (e.key === 'Enter' && canArm && !loading) handleClick() }}
           />
         </div>
-      )}
-
-      {/* Armed state hint */}
-      {variant === 'confirm' && step === 1 && (
-        <p style={{ marginTop: 12, fontSize: 12, color: 'var(--stopped)', fontFamily: 'IBM Plex Mono' }}>
-          Click again to confirm — this cannot be undone.
-        </p>
       )}
     </Modal>
   )

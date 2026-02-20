@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Backend
 ```bash
 # Install dependencies
-pip install fastapi uvicorn
+pip install -r backend/requirements.txt
 
 # Run dev server (from backend/)
 uvicorn main:app --reload --port 8000
@@ -41,29 +41,15 @@ docker-compose up --build
 
 ### Backend (`backend/`)
 
-| File | Role |
-|------|------|
-| `main.py` | FastAPI app — all REST endpoints and WebSocket handler |
-| `multipass.py` | Subprocess wrapper for `multipass` CLI commands |
-| `activity.py` | Read/write activity log to `activity.json` |
-| `stats.py` | Aggregate global stats (totals across all VMs) |
-| `activity.json` | Persistent action log (timestamp, action, vm_name, status) |
+The backend is now modular and production-oriented:
+- `main.py` delegates to `app/create_app()`
+- `app/routers_ui.py` exposes the product API surface
+- `app/routers_ws.py` handles `WS /ws/instances`
+- `app/multipass_client.py` provides async Multipass execution with timeout/concurrency/cache
+- `app/activity_store.py` persists activity in SQLite (`activity.db`)
 
-**Key endpoints:**
-- `GET /api/instances` — list all VMs (state, IP, CPU, RAM, disk)
-- `GET /api/instances/{name}` — VM detail
-- `POST /api/instances/{name}/start|stop|suspend`
-- `DELETE /api/instances/{name}`
-- `POST /api/instances/launch` — body: `{name, image, cpus, memory, disk}`
-- `GET /api/instances/{name}/snapshots`
-- `POST /api/instances/{name}/snapshot`
-- `GET /api/activity` — recent activity feed
-- `GET /api/stats` — global totals
-- `WS /ws/instances` — pushes VM state every 5 seconds
-
-CORS is enabled for `localhost:5173`. Every action is logged to `activity.json`.
-
-The WebSocket also collects per-VM CPU/RAM/Disk history (max 60 points) for the resource chart.
+The generic debug endpoint `/api/multipass/run` is removed.
+Use `backend/README.md` for the authoritative endpoint contract and runtime configuration.
 
 ### Frontend (`frontend/src/`)
 

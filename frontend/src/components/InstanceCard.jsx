@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Play, Square, Pause, Camera, Trash2, MoreHorizontal, Loader2, Copy, Check } from 'lucide-react'
+import { Play, Square, Pause, Camera, Trash2, MoreHorizontal, Loader2, Copy, Check, TerminalSquare, KeyRound, ShieldAlert } from 'lucide-react'
 import { api } from '../api/client'
-import { useToast } from './Toast'
+import { sileo } from 'sileo'
 import ConfirmModal from './ConfirmModal'
+import SshAccessModal from './instances/SshAccessModal'
+import UpdatesModal from './instances/UpdatesModal'
 
 function StateBadge({ state }) {
   const cls = state === 'Running' ? 'badge-running' : state === 'Stopped' ? 'badge-stopped' : 'badge-suspended'
@@ -23,39 +25,59 @@ function fmt(bytes) {
   return `${(bytes / (1024 ** 2)).toFixed(0)}M`
 }
 
-function CopyIP({ ip }) {
-  const [copied, setCopied] = useState(false)
-  if (ip === '—') return <span className="stat-value">—</span>
+function CopyIP({ ips = [] }) {
+  const [copiedIp, setCopiedIp] = useState('')
+  const items = Array.isArray(ips) ? ips.filter(Boolean) : []
+  if (items.length === 0) return <span className="stat-value">—</span>
 
-  function doCopy(e) {
+  function doCopy(e, ip) {
     e.stopPropagation()
     navigator.clipboard.writeText(ip).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
+      setCopiedIp(ip)
+      setTimeout(() => setCopiedIp((current) => (current === ip ? '' : current)), 1800)
     })
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      <span className="mono" style={{
-        fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 500, lineHeight: 1,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      }}>{ip}</span>
-      <button
-        onClick={doCopy}
-        title={copied ? 'Copied!' : 'Copy IP'}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          padding: '2px 3px', flexShrink: 0,
-          color: copied ? 'var(--running)' : 'var(--text-muted)',
-          display: 'flex', alignItems: 'center',
-          borderRadius: 4, transition: 'color 0.2s',
-        }}
-        onMouseEnter={e => { if (!copied) e.currentTarget.style.color = 'var(--text-primary)' }}
-        onMouseLeave={e => { if (!copied) e.currentTarget.style.color = 'var(--text-muted)' }}
-      >
-        {copied ? <Check size={11} /> : <Copy size={11} />}
-      </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {items.map((ip) => (
+        <div key={ip} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span className="mono" style={{
+            fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 500, lineHeight: 1,
+          }}>{ip}</span>
+          <button
+            onClick={(e) => doCopy(e, ip)}
+            title={copiedIp === ip ? 'Copied!' : 'Copy IP'}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '2px 3px', flexShrink: 0,
+              color: copiedIp === ip ? 'var(--running)' : 'var(--text-secondary)',
+              display: 'flex', alignItems: 'center',
+              borderRadius: 4, transition: 'color 0.2s',
+            }}
+            onMouseEnter={e => { if (copiedIp !== ip) e.currentTarget.style.color = 'var(--text-primary)' }}
+            onMouseLeave={e => { if (copiedIp !== ip) e.currentTarget.style.color = 'var(--text-secondary)' }}
+          >
+            {copiedIp === ip ? <Check size={11} /> : <Copy size={11} />}
+          </button>
+          <a
+            href={`ssh://ubuntu@${ip}`}
+            title={`Open SSH: ssh ubuntu@${ip}`}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '2px 3px', flexShrink: 0,
+              color: 'var(--text-secondary)',
+              display: 'flex', alignItems: 'center',
+              borderRadius: 4, transition: 'color 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
+          >
+            <TerminalSquare size={11} />
+          </a>
+        </div>
+      ))}
     </div>
   )
 }
@@ -64,10 +86,11 @@ export default function InstanceCard({ instance }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [loading, setLoading] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [sshDialogOpen, setSshDialogOpen] = useState(false)
+  const [updatesDialogOpen, setUpdatesDialogOpen] = useState(false)
   const menuRef = useRef(null)
   const qc = useQueryClient()
-  const toast = useToast()
-
+  
   useEffect(() => {
     const fn = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
     document.addEventListener('mousedown', fn)
@@ -77,26 +100,30 @@ export default function InstanceCard({ instance }) {
   async function doAction(fn, label, successMsg) {
     setLoading(label)
     setMenuOpen(false)
-    try {
-      const res = await fn()
-      if (res?.status === 'error') { toast(res.error || `${label} failed`, 'error') }
-      else { toast(successMsg, 'success') }
+    const MIN = new Promise(r => setTimeout(r, 700))
+    const promise = Promise.all([fn(), MIN]).then(([res]) => {
+      if (res?.status === 'error') throw new Error(res.error || `${label} failed`)
       qc.invalidateQueries({ queryKey: ['instances'] })
       qc.invalidateQueries({ queryKey: ['stats'] })
       qc.invalidateQueries({ queryKey: ['activity'] })
-    } catch (e) {
-      toast(e.message, 'error')
-    } finally { setLoading(null) }
+      return res
+    })
+    sileo.promise(promise, {
+      loading: { title: label.charAt(0).toUpperCase() + label.slice(1) + 'ing…' },
+      success: { title: successMsg },
+      error:   (e) => ({ title: e.message }),
+    })
+    try { await promise } catch {}
+    setLoading(null)
   }
 
   const { name, state, ipv4 = [], image, cpus, memory, disk } = instance
-  const ip = ipv4[0] ?? '—'
 
   return (
     <>
       <div
         className="card"
-        style={{ position: 'relative', transition: 'border-color 0.18s, background 0.18s' }}
+        style={{ position: 'relative', transition: 'border-color 0.18s, background 0.18s', height: '100%', boxSizing: 'border-box' }}
         onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(181,242,61,0.22)'; e.currentTarget.style.background='var(--card-2)' }}
         onMouseLeave={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.background='var(--card-1)' }}
       >
@@ -144,6 +171,10 @@ export default function InstanceCard({ instance }) {
                   <MenuItem icon={<Pause size={12} />} label="Suspend" color="var(--suspended)"
                     onClick={() => doAction(() => api.suspendInstance(name), 'suspend', `Suspended ${name}`)} />
                 )}
+                <MenuItem icon={<KeyRound size={12} />} label="SSH Access" color="#facc15"
+                  onClick={() => { setMenuOpen(false); setSshDialogOpen(true) }} />
+                <MenuItem icon={<ShieldAlert size={12} />} label="Updates" color="#60a5fa"
+                  onClick={() => { setMenuOpen(false); setUpdatesDialogOpen(true) }} />
                 <MenuItem icon={<Camera size={12} />} label="Snapshot" color="#a78bfa"
                   onClick={() => doAction(() => api.createSnapshot(name), 'snapshot', `Snapshot created`)} />
                 <div style={{ height: 1, background: 'var(--border)', margin: '4px 6px' }} />
@@ -154,25 +185,27 @@ export default function InstanceCard({ instance }) {
           </div>
         </div>
 
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.6fr) repeat(3,minmax(0,1fr))', gap: 10 }}>
-          <div className="stat-cell" style={{ minWidth: 0 }}>
-            <span className="stat-label">IP</span>
-            <CopyIP ip={ip} />
-          </div>
+        {/* IP — full width row */}
+        <div className="stat-cell" style={{ marginBottom: 10 }}>
+          <span className="stat-label">IP</span>
+          <CopyIP ips={ipv4} />
+        </div>
+
+        {/* CPU / RAM / Disk */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
           {[
             { label: 'CPU',  value: cpus ? String(cpus) : '—' },
             { label: 'RAM',  value: fmt(memory?.total) },
             { label: 'Disk', value: fmt(disk?.total) },
           ].map(({ label, value }) => (
-            <div className="stat-cell" key={label} style={{ minWidth: 0 }}>
+            <div className="stat-cell" key={label}>
               <span className="stat-label">{label}</span>
-              <span className="stat-value" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{value}</span>
+              <span className="stat-value">{value}</span>
             </div>
           ))}
         </div>
 
-        <p className="mono" style={{ marginTop: 12, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1 }}>
+        <p className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1 }}>
           {image || '—'}
         </p>
       </div>
@@ -186,6 +219,20 @@ export default function InstanceCard({ instance }) {
           variant="name"
           onClose={() => setConfirmDelete(false)}
           onConfirm={() => doAction(() => api.deleteInstance(name), 'delete', `Deleted ${name}`)}
+        />
+      )}
+
+      {sshDialogOpen && (
+        <SshAccessModal
+          instanceName={name}
+          onClose={() => setSshDialogOpen(false)}
+        />
+      )}
+
+      {updatesDialogOpen && (
+        <UpdatesModal
+          instanceName={name}
+          onClose={() => setUpdatesDialogOpen(false)}
         />
       )}
     </>

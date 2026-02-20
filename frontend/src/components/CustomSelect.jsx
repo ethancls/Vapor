@@ -1,46 +1,100 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronDown, Check, Search } from 'lucide-react'
 
-export default function CustomSelect({ value, onChange, options, placeholder = 'Select…', style = {} }) {
+export default function CustomSelect({
+  value,
+  onChange,
+  options,
+  placeholder = 'Select…',
+  searchable = false,
+  dropUp = false,
+  dropdownWidth = 'trigger',
+  controlHeight = null,
+  style = {},
+}) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const containerRef = useRef(null)
-  const selected = options.find(o => o.value === value)
+  const searchRef = useRef(null)
+  const normalizedOptions = Array.isArray(options) ? options : []
+  const selected = normalizedOptions.find(o => o.value === value)
+
+  // Determine if any option has a tag — to reserve tag column consistently
+  const hasTags = normalizedOptions.some(o => o.tag)
 
   useEffect(() => {
     const fn = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false)
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false)
+        setQuery('')
+      }
     }
     document.addEventListener('mousedown', fn)
     return () => document.removeEventListener('mousedown', fn)
   }, [])
 
-  // close on Escape
   useEffect(() => {
     if (!open) return
-    const fn = (e) => { if (e.key === 'Escape') setOpen(false) }
+    const fn = (e) => { if (e.key === 'Escape') { setOpen(false); setQuery('') } }
     window.addEventListener('keydown', fn)
     return () => window.removeEventListener('keydown', fn)
   }, [open])
 
+  useEffect(() => {
+    if (open && searchable) {
+      setTimeout(() => searchRef.current?.focus(), 30)
+    }
+  }, [open, searchable])
+
+  const filtered = query.trim()
+    ? normalizedOptions.filter((o) => {
+        const text = [
+          o.label,
+          o.description,
+          o.group,
+          typeof o.value === 'string' ? o.value : '',
+        ].filter(Boolean).join(' ').toLowerCase()
+        return text.includes(query.toLowerCase())
+      })
+    : normalizedOptions
+
+  function handleOpen() {
+    setOpen(o => !o)
+    setQuery('')
+  }
+
+  function handleSelect(val) {
+    onChange(val)
+    setOpen(false)
+    setQuery('')
+  }
+
   return (
     <div ref={containerRef} style={{ position: 'relative', ...style }}>
+      {/* Trigger */}
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={handleOpen}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-          background: 'var(--card-2)', border: '1px solid',
+          background: 'var(--card-2)',
+          border: '1px solid',
           borderColor: open ? 'rgba(181,242,61,0.4)' : 'var(--border)',
-          borderRadius: 'var(--r-sm)', padding: '10px 13px',
-          color: selected ? 'var(--text-primary)' : 'var(--text-muted)',
-          fontFamily: 'IBM Plex Mono', fontSize: 13, lineHeight: 1,
+          borderRadius: 'var(--r-sm)',
+          ...(controlHeight
+            ? { height: controlHeight, padding: '0 12px' }
+            : { padding: '9px 12px' }),
+          color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
+          fontFamily: 'IBM Plex Mono', fontSize: 12, lineHeight: 1,
           cursor: 'pointer', textAlign: 'left',
-          transition: 'border-color 0.15s',
+          transition: 'border-color 0.15s, background 0.15s',
         }}
-        onMouseEnter={e => { if (!open) e.currentTarget.style.borderColor = 'var(--border-hover)' }}
-        onMouseLeave={e => { if (!open) e.currentTarget.style.borderColor = 'var(--border)' }}
+        onMouseEnter={e => { if (!open) { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--card-3)' } }}
+        onMouseLeave={e => { if (!open) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--card-2)' } }}
       >
-        <span style={{ flex: 1 }}>{selected?.label ?? placeholder}</span>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selected?.label ?? placeholder}
+        </span>
         {selected?.tag && (
           <span style={{
             fontSize: 10, background: 'var(--accent-dim)', color: 'var(--accent)',
@@ -49,49 +103,139 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
           }}>{selected.tag}</span>
         )}
         <ChevronDown
-          size={13}
+          size={12}
           style={{
-            color: 'var(--text-muted)', flexShrink: 0,
+            color: 'var(--text-secondary)', flexShrink: 0,
             transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
             transition: 'transform 0.15s',
           }}
         />
       </button>
 
+      {/* Dropdown */}
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 400,
+          position: 'absolute',
+          ...(dropUp
+            ? { bottom: 'calc(100% + 4px)' }
+            : { top: 'calc(100% + 4px)' }),
+          left: 0,
+          ...(dropdownWidth === 'content'
+            ? { minWidth: '100%', width: 'max-content', maxWidth: 'min(90vw, 640px)' }
+            : { right: 0 }),
+          zIndex: 400,
           background: 'var(--card-3)', border: '1px solid var(--border)',
           borderRadius: 12, boxShadow: 'var(--shadow-lg)',
           overflow: 'hidden',
         }}>
-          {options.map(opt => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => { onChange(opt.value); setOpen(false) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                width: '100%', background: 'none', border: 'none',
-                padding: '9px 13px', cursor: 'pointer',
-                color: value === opt.value ? 'var(--accent)' : 'var(--text-primary)',
-                fontFamily: 'IBM Plex Mono', fontSize: 13, lineHeight: 1,
-                transition: 'background 0.1s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              <span style={{ flex: 1 }}>{opt.label}</span>
-              {opt.tag && (
-                <span style={{
-                  fontSize: 10, background: 'var(--accent-dim)', color: 'var(--accent)',
-                  border: '1px solid var(--accent-border)', borderRadius: 5, padding: '2px 6px',
-                  fontFamily: 'Syne', fontWeight: 700,
-                }}>{opt.tag}</span>
-              )}
-              {value === opt.value && <Check size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
-            </button>
-          ))}
+          {/* Search input */}
+          {searchable && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '9px 12px', borderBottom: '1px solid var(--border)',
+              background: 'var(--card-2)',
+            }}>
+              <Search size={12} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search…"
+                style={{
+                  flex: 1, background: 'none', border: 'none', outline: 'none',
+                  color: 'var(--text-primary)', fontFamily: 'IBM Plex Mono', fontSize: 12,
+                }}
+              />
+            </div>
+          )}
+
+          {/* Options */}
+          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+            {filtered.length === 0 && (
+              <p style={{ padding: '12px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'IBM Plex Mono', margin: 0 }}>
+                No results
+              </p>
+            )}
+            {filtered.map((opt, idx) => (
+              <div key={`${opt.group || 'default'}:${opt.value}`}>
+                {opt.group && (idx === 0 || filtered[idx - 1]?.group !== opt.group) && (
+                  <p style={{
+                    margin: 0,
+                    padding: '8px 12px 6px',
+                    fontSize: 10.5,
+                    color: 'var(--text-secondary)',
+                    borderBottom: '1px solid var(--border)',
+                    background: 'var(--card-2)',
+                    fontFamily: 'IBM Plex Mono',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                  }}>
+                    {opt.group}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleSelect(opt.value)}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `minmax(0, 1fr)${hasTags ? ' 52px' : ''} 16px`,
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: idx < filtered.length - 1 ? '1px solid var(--border)' : 'none',
+                    padding: opt.description ? '10px 12px' : '9px 12px',
+                    cursor: 'pointer',
+                    color: value === opt.value ? 'var(--accent)' : 'var(--text-primary)',
+                    fontFamily: 'IBM Plex Mono',
+                    fontSize: 12,
+                    lineHeight: 1,
+                    transition: 'background 0.1s',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {opt.label}
+                    </span>
+                    {opt.description && (
+                      <span style={{
+                        fontSize: 10.5,
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.25,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                      }}>
+                        {opt.description}
+                      </span>
+                    )}
+                  </span>
+
+                  {hasTags && (
+                    <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      {opt.tag && (
+                        <span style={{
+                          fontSize: 10, background: 'var(--accent-dim)', color: 'var(--accent)',
+                          border: '1px solid var(--accent-border)', borderRadius: 5, padding: '2px 6px',
+                          fontFamily: 'Syne', fontWeight: 700, whiteSpace: 'nowrap',
+                        }}>{opt.tag}</span>
+                      )}
+                    </span>
+                  )}
+
+                  <span style={{ display: 'flex', justifyContent: 'center', width: 16 }}>
+                    {value === opt.value && <Check size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                  </span>
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
