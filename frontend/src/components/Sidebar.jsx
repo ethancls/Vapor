@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import { version as APP_VERSION } from '../../package.json'
-import { Boxes, Plus, Sun, Moon, Monitor, ChevronLeft, Files, EthernetPort, CircleFadingArrowUp, Check, LogOut, Settings, Users, History, Layers2, LayoutGrid, Lock } from 'lucide-react'
+import { Boxes, Plus, Sun, Moon, Monitor, ChevronLeft, Files, EthernetPort, CircleFadingArrowUp, Check, LogOut, Settings, Users, History, Layers2, LayoutGrid, Lock, Github } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTheme } from '../contexts/ThemeContext'
 import { api, authLogout } from '../api/client'
@@ -124,57 +124,25 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
 
   return (
     <aside
-      className={`sidebar${collapsed ? ' collapsed' : ''}`}
-      style={{
-        background: 'var(--card-1)',
-        borderRight: '1px solid var(--border)',
-        borderRadius: '0 20px 20px 0',
-        display: 'flex', flexDirection: 'column',
-        height: '100vh', padding: collapsed ? '18px 12px' : '18px 16px',
-        transition: 'padding var(--sidebar-anim-duration) var(--sidebar-anim-ease)',
-      }}
+      className={`sidebar sidebar-shell${collapsed ? ' collapsed' : ''}`}
     >
       {/* ── Logo row ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center',
-        marginBottom: 26,
-      }}>
+      <div className="sidebar-header">
         <div
-          className="logo-row"
+          className={`sidebar-brand${collapsed ? ' is-collapsed' : ''}`}
           onClick={collapsed ? onToggle : undefined}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => { if (collapsed && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onToggle() } }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            overflow: 'hidden',
-            cursor: collapsed ? 'pointer' : 'default',
-          }}
         >
           <img
             src="/vapor.png"
             width={40} height={40}
             alt="Vapor"
-            style={{
-              imageRendering: 'auto',
-              display: 'block',
-              flex: '0 0 40px',
-              width: 40,
-              height: 40,
-              minWidth: 40,
-              minHeight: 40,
-              maxWidth: 'none',
-              objectFit: 'contain',
-            }}
+            className="sidebar-brand-logo"
           />
-          <div className="sidebar-label" style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-            <span style={{
-              display: 'block',
-              fontFamily: 'Syne', fontWeight: 800, fontSize: 22,
-              letterSpacing: '-0.6px', lineHeight: 1,
-              color: 'var(--text-primary)',
-            }}>Vapor</span>
-            <span className="mono" style={{ display: 'block', width: '100%', textAlign: 'right', fontSize: 10, color: '#ffffff', lineHeight: 1.5 }}>v{APP_VERSION}</span>
+          <div className="sidebar-brand-copy sidebar-label">
+            <span className="sidebar-brand-title">Vapor</span>
           </div>
         </div>
 
@@ -184,46 +152,29 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
             aria-label="Collapse sidebar (⌘B)"
             title="Collapse sidebar (⌘B)"
             onClick={onToggle}
-            className=""
-            style={{
-              marginLeft: 'auto',
-              background: 'none', border: 'none', padding: '3px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center',
-              flexShrink: 0, borderRadius: 6, opacity: 0.65,
-              transition: 'opacity 0.15s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-            onMouseLeave={e => e.currentTarget.style.opacity = '0.65'}
+            className="sidebar-collapse-toggle"
           >
             <ChevronLeft size={22} color="var(--accent)" strokeWidth={3} />
           </button>
         )}
       </div>
 
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <nav className="sidebar-nav">
         {navEntries.map((item, idx) => {
           const { group, to, label, matchPaths, matchPrefix, allowed } = item
           const isActive = (matchPaths && matchPaths.includes(pathname)) || (matchPrefix && pathname.startsWith(matchPrefix)) || pathname === to
           const prevGroup = idx > 0 ? navEntries[idx - 1].group : null
           const startsGroup = !!group && group !== prevGroup
           return (
-            <div key={to} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div key={to} className="sidebar-nav-section">
               {!collapsed && startsGroup && (
-                <p className="section-label" style={{ padding: '8px 10px 2px', margin: 0, opacity: 0.78 }}>
+                <p className="section-label sidebar-group-label">
                   {group}
                 </p>
               )}
               {collapsed && startsGroup && (
-                <div
-                  aria-hidden="true"
-                  style={{
-                    height: 18,
-                    padding: '0 8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                >
-                  <span style={{ width: '100%', borderTop: '1px dashed var(--border)' }} />
+                <div aria-hidden="true" className="sidebar-group-divider">
+                  <span className="sidebar-group-divider-line" />
                 </div>
               )}
               {allowed ? (
@@ -234,36 +185,23 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
                   className={() => `nav-item${isActive ? ' active' : ''}`}
                 >
                   {/* Icon — with dot badge when collapsed and updates pending */}
-                  <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                  <span className="sidebar-nav-icon-wrap">
                     <item.Icon size={22} />
                     {to === '/updates' && collapsed && outdatedCount > 0 && (
-                      <span style={{
-                        position: 'absolute', top: -3, right: -4,
-                        width: 10, height: 10, borderRadius: '50%',
-                        background: '#22d3ee',
-                        border: '2px solid var(--card-1)',
-                      }} />
+                      <span className="sidebar-nav-updates-dot" />
                     )}
                   </span>
 
                   {/* Label — with count or check badge when expanded */}
-                  <span className="sidebar-label" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                  <span className="sidebar-label sidebar-nav-label">
                     {label}
                     {to === '/updates' && !collapsed && outdatedCount > 0 && (
-                      <span style={{
-                        marginLeft: 'auto',
-                        flexShrink: 0,
-                        color: '#22d3ee',
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        fontFamily: 'IBM Plex Mono',
-                        lineHeight: 1,
-                      }}>
+                      <span className="sidebar-nav-updates-count mono">
                         {outdatedCount}
                       </span>
                     )}
                     {to === '/updates' && !collapsed && allCheckedAndOk && (
-                      <Check size={11} style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--running)' }} />
+                      <Check size={11} className="sidebar-nav-updates-check" />
                     )}
                   </span>
                 </NavLink>
@@ -277,12 +215,12 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
                     description: `Your role does not allow access to ${label}.`,
                   })}
                 >
-                  <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                  <span className="sidebar-nav-icon-wrap">
                     <item.Icon size={22} />
                   </span>
-                  <span className="sidebar-label" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                  <span className="sidebar-label sidebar-nav-label">
                     {label}
-                    {!collapsed && <Lock size={11} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+                    {!collapsed && <Lock size={11} className="sidebar-nav-lock" />}
                   </span>
                 </button>
               )}
@@ -291,24 +229,16 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
         })}
       </nav>
 
-      <div style={{ flex: 1 }} />
+      <div className="sidebar-fill" />
 
       {/* New instance */}
       {collapsed ? (
-          <button
-            type="button"
-            aria-label="New Instance"
-            title="New Instance"
+        <button
+          type="button"
+          aria-label="New Instance"
+          title="New Instance"
           onClick={onNewInstance}
-          className=""
-          style={{
-            background: 'var(--accent-fill)', border: 'none', borderRadius: 10,
-            width: '100%',
-            height: 40,
-            cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: 8,
-          }}
+          className="sidebar-new-instance-button"
         >
           <Plus size={16} color="#0a0a0a" />
         </button>
@@ -323,47 +253,88 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
       )}
 
       {/* Theme */}
-      <div style={{ marginBottom: 8 }}>
-        <button
-          type="button"
-          aria-label="Switch theme"
-          title={`Theme: ${activeTheme.label}`}
-          className={`sidebar-theme-cycle${collapsed ? ' is-collapsed' : ''}`}
-          onClick={cycleTheme}
-        >
-          <span className="sidebar-theme-cycle-icon">
-            <activeTheme.Icon size={16} />
-          </span>
-          {!collapsed && (
-            <span className="mono sidebar-theme-cycle-label">
-              {activeTheme.label}
+      <div className={`sidebar-footer${collapsed ? ' is-collapsed' : ''}`}>
+        {!collapsed ? (
+          <div className="sidebar-theme-picker" role="group" aria-label="Theme">
+            {THEME_OPTIONS.map((option) => {
+              const isActive = theme === option.value
+              const Icon = option.Icon
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setTheme(option.value)}
+                  className={`sidebar-theme-picker-option${isActive ? ' is-active' : ''}`}
+                  aria-label={`Set ${option.label} theme`}
+                  aria-pressed={isActive}
+                >
+                  <Icon size={16} />
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <button
+            type="button"
+            aria-label="Switch theme"
+            title={`Theme: ${activeTheme.label}`}
+            className="sidebar-theme-cycle is-collapsed"
+            onClick={cycleTheme}
+          >
+            <span className="sidebar-theme-cycle-icon">
+              <activeTheme.Icon size={18} />
             </span>
-          )}
-        </button>
-      </div>
+          </button>
+        )}
 
-      {/* Account */}
-      <div style={{ marginBottom: 8 }}>
-        <button
-          type="button"
-          aria-label="Sign out"
-          title="Sign out"
-          onClick={handleSignOut}
-          className={`sidebar-account-signout${collapsed ? ' is-collapsed' : ''}`}
-        >
-          <SidebarAvatar key={me?.avatar_url || ''} user={me} size={28} />
-          {!collapsed && (
-            <>
-              <div className="sidebar-account-meta">
-                <p className="sidebar-account-name">{accountName}</p>
-                <p className="mono sidebar-account-login">
-                  @{accountLogin}
-                </p>
-              </div>
-              <LogOut size={17} />
-            </>
-          )}
-        </button>
+        {!collapsed ? (
+          <div className="sidebar-user-row">
+            <SidebarAvatar key={me?.avatar_url || ''} user={me} size={34} />
+            <div className="sidebar-user-meta">
+              <p className="sidebar-user-name">{accountName}</p>
+              <p className="mono sidebar-user-login">
+                @{accountLogin}
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Sign out"
+              title="Sign out"
+              onClick={handleSignOut}
+              className="sidebar-logout-button"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            aria-label="Sign out"
+            title="Sign out"
+            onClick={handleSignOut}
+            className="sidebar-footer-action-button sidebar-footer-action-button-danger"
+          >
+            <LogOut size={18} />
+          </button>
+        )}
+
+        {!collapsed && (
+          <div className="sidebar-footer-version-row">
+            <p className="mono sidebar-footer-version-text">
+              v{APP_VERSION}
+            </p>
+            <a
+              className="sidebar-footer-github-link"
+              href="https://github.com/ethancls/Vapor"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Open Vapor GitHub repository"
+              title="GitHub"
+            >
+              <Github size={14} />
+            </a>
+          </div>
+        )}
       </div>
 
       {forbiddenNav && (
