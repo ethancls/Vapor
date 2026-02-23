@@ -1,5 +1,8 @@
 SHELL := /usr/bin/env bash
-PATH_EXT := /tmp/go/bin:/home/ethancls/go/bin:/home/ethancls/.nvm/versions/node/v20.19.0/bin
+GO_GOBIN := $(shell go env GOBIN 2>/dev/null)
+GO_GOPATH := $(shell go env GOPATH 2>/dev/null)
+GO_BIN := $(strip $(if $(GO_GOBIN),$(GO_GOBIN),$(GO_GOPATH)/bin))
+PATH_EXT := $(GO_BIN)
 SERVICE_USER ?= $(shell id -un)
 
 .PHONY: dev build run install uninstall service-status logs
@@ -31,13 +34,29 @@ run: build
 	./vapor
 
 install:
-	./deploy/install.sh
+	@if command -v systemctl >/dev/null 2>&1; then \
+		./deploy/install.sh; \
+	else \
+		echo "install target is Linux/systemd-only. On macOS, use: make build && ./vapor"; \
+	fi
 
 uninstall:
-	sudo ./deploy/uninstall.sh
+	@if command -v systemctl >/dev/null 2>&1; then \
+		sudo ./deploy/uninstall.sh; \
+	else \
+		echo "uninstall target is Linux/systemd-only."; \
+	fi
 
 service-status:
-	systemctl --no-pager status "vapor@$(SERVICE_USER)"
+	@if command -v systemctl >/dev/null 2>&1; then \
+		systemctl --no-pager status "vapor@$(SERVICE_USER)"; \
+	else \
+		echo "service-status is Linux/systemd-only."; \
+	fi
 
 logs:
-	journalctl -u "vapor@$(SERVICE_USER)" -f
+	@if command -v systemctl >/dev/null 2>&1; then \
+		journalctl -u "vapor@$(SERVICE_USER)" -f; \
+	else \
+		echo "logs target is Linux/systemd-only."; \
+	fi
