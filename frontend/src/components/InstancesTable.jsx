@@ -1,113 +1,176 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import { Play, Square, Pause, Camera, RotateCcw, CopyPlus, Trash2, Loader2, Copy, Check, ChevronsUpDown, ChevronUp, ChevronDown, TerminalSquare, KeyRound, ShieldAlert } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Power, PowerOff, Pause, Files, RotateCcw, CopyPlus, Trash2, Loader2, ChevronsUpDown, ChevronUp, ChevronDown, Key, CircleArrowUp, ArchiveRestore, ArrowUpRight } from 'lucide-react'
 import { sileo } from 'sileo'
 import { api } from '../api/client'
 import ConfirmModal from './ConfirmModal'
+import Tooltip from './Tooltip'
 import InstanceStateBadge from './instances/InstanceStateBadge'
 import InstancesCheckbox from './instances/InstancesCheckbox'
 import ActionRadialMenu from './instances/ActionRadialMenu'
 import CloneInstanceModal from './instances/CloneInstanceModal'
 import SshAccessModal from './instances/SshAccessModal'
 import UpdatesModal from './instances/UpdatesModal'
-import { fmtResource, sortValue } from './instances/instancesUtils'
+import CopyIP from './instances/CopyIP'
+import ResourceUsage from './instances/ResourceUsage'
+import { fmtResource, sortValue, invalidateInstanceQueries, randomSnapshotName } from './instances/instancesUtils'
 
 const COLUMNS = [
   { key: 'name', label: 'Name' },
   { key: 'state', label: 'State' },
   { key: 'ipv4', label: 'IPv4' },
   { key: 'image', label: 'Image' },
-  { key: 'cpus', label: 'CPUs' },
-  { key: 'memory', label: 'Memory' },
+  { key: 'cpus', label: 'vCPUs' },
+  { key: 'memory', label: 'RAM' },
   { key: 'disk', label: 'Disk' },
+  { key: 'usage', label: 'Usage' },
   { key: null, label: 'Actions' },
 ]
 
-function CopyIP({ ips = [] }) {
-  const [copiedIp, setCopiedIp] = useState('')
-  const items = Array.isArray(ips) ? ips.filter(Boolean) : []
-  if (items.length === 0) return <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>—</span>
+const CENTERED_HEADERS = new Set(['vCPUs', 'RAM', 'Disk', 'Usage', 'Actions'])
 
-  function doCopy(e, ip) {
-    e.stopPropagation()
-    navigator.clipboard.writeText(ip).then(() => {
-      setCopiedIp(ip)
-      setTimeout(() => setCopiedIp((current) => (current === ip ? '' : current)), 1800)
-    })
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {items.map((ip) => (
-        <div key={ip} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{ip}</span>
-          <button
-            onClick={(e) => doCopy(e, ip)}
-            title={copiedIp === ip ? 'Copied!' : 'Copy IP'}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
-              color: copiedIp === ip ? 'var(--running)' : 'var(--text-secondary)',
-              display: 'flex', alignItems: 'center', borderRadius: 4, transition: 'color 0.2s', flexShrink: 0,
-            }}
-          >
-            {copiedIp === ip ? <Check size={11} /> : <Copy size={11} />}
-          </button>
-          <a
-            href={`ssh://ubuntu@${ip}`}
-            title={`Open SSH: ssh ubuntu@${ip}`}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
-              color: 'var(--text-secondary)',
-              display: 'flex', alignItems: 'center', borderRadius: 4, transition: 'color 0.2s',
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
-          >
-            <TerminalSquare size={11} />
-          </a>
-        </div>
-      ))}
-    </div>
-  )
+// Terminal state to wait for after each action (via WebSocket updates)
+const TARGET_STATE = {
+  start:   'Running',
+  stop:    'Stopped',
+  suspend: 'Suspended',
+  restart: 'Running',
+  recover: 'Stopped',
+  // delete / snapshot / clone: no stable target — cleared immediately after API response
 }
 
-function ActionBtn({ icon, color, title, onClick }) {
+const EMPTY_INSTANCES = []
+const EMPTY_NAMES = new Set()
+
+const ACTION_BUTTON_SIZE = 34
+const ACTION_BUTTON_GAP = 5
+const ACTION_CELL_HORIZONTAL_PADDING = 36
+const MAX_VISIBLE_ACTION_SLOTS = 4 // Grip included
+
+const ACTION_VISIBILITY_PRIORITY = {
+  stop: 400,
+  start: 390,
+  ssh: 380,
+  updates: 370,
+}
+
+function splitVisibleAndOverflowActions(actions, containerWidth) {
+  if (!actions.length) return { visibleActions: [], overflowActions: [] }
+  const usableWidth = Math.max(ACTION_BUTTON_SIZE, containerWidth)
+  const maxByWidth = Math.max(
+    1,
+    Math.floor((usableWidth + ACTION_BUTTON_GAP) / (ACTION_BUTTON_SIZE + ACTION_BUTTON_GAP)),
+  )
+  const maxSlots = Math.min(MAX_VISIBLE_ACTION_SLOTS, maxByWidth)
+
+  if (actions.length <= maxSlots) {
+    return { visibleActions: actions, overflowActions: [] }
+  }
+
+  const visibleCount = Math.max(0, maxSlots - 1) // reserve one slot for Grip menu
+  const prioritizedIndexes = actions
+    .map((action, index) => ({
+      index,
+      score: (ACTION_VISIBILITY_PRIORITY[action.key] || 0) + (action.isLoading ? 1000 : 0),
+    }))
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .slice(0, visibleCount)
+    .map((item) => item.index)
+  const visibleIndexSet = new Set(prioritizedIndexes)
+  const visibleActions = actions.filter((_, index) => visibleIndexSet.has(index))
+  const overflowActions = actions.filter((_, index) => !visibleIndexSet.has(index))
+
+  // Preserve original order for visual consistency.
+  visibleActions.sort((a, b) => actions.indexOf(a) - actions.indexOf(b))
+  overflowActions.sort((a, b) => actions.indexOf(a) - actions.indexOf(b))
+
+  return { visibleActions, overflowActions }
+}
+
+function ActionBtn({ icon, color, label, onClick, isLoading = false, disabled = false }) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{
-        width: 34, height: 34, borderRadius: 9, border: 'none',
-        background: 'transparent', color, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        transition: 'background 0.12s', flexShrink: 0,
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = `color-mix(in srgb, ${color} 12%, transparent)` }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-    >
-      {icon}
-    </button>
+    <Tooltip label={label}>
+      <button
+        type="button"
+        aria-label={label}
+        onClick={!isLoading && !disabled ? onClick : undefined}
+        style={{
+          width: 34, height: 34, borderRadius: 9, border: 'none',
+          background: 'transparent',
+          color: disabled && !isLoading ? 'var(--text-muted)' : color,
+          cursor: isLoading || disabled ? 'default' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background 0.12s, color 0.12s, opacity 0.12s',
+          flexShrink: 0,
+          opacity: disabled && !isLoading ? 0.3 : 1,
+        }}
+        onMouseEnter={(e) => {
+          if (!isLoading && !disabled) e.currentTarget.style.background = `color-mix(in srgb, ${color} 12%, transparent)`
+        }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+      >
+        {isLoading
+          ? <Loader2 size={14} style={{ animation: 'spin 0.7s linear infinite' }} />
+          : icon
+        }
+      </button>
+    </Tooltip>
   )
 }
 
 export default function InstancesTable({
-  instances = [],
-  selectedNames = new Set(),
+  instances = EMPTY_INSTANCES,
+  selectedNames = EMPTY_NAMES,
   onToggleSelect,
   onToggleSelectAll,
   searchQuery = '',
 }) {
   const location = useLocation()
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
+  // loading[name] = action key ('start', 'stop', …) while in progress, null/undefined otherwise
   const [loading, setLoading] = useState({})
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [cloneDialog, setCloneDialog] = useState(null)
   const [sshDialogInstance, setSshDialogInstance] = useState('')
   const [updatesDialogInstance, setUpdatesDialogInstance] = useState('')
+  const [actionsCellWidth, setActionsCellWidth] = useState(240)
+  const timeoutsRef = useRef({})
+  const firstActionsCellRef = useRef(null)
   const qc = useQueryClient()
+  const updatesItems = useQuery({
+    queryKey: ['updates'],
+    queryFn: () => api.getUpdates(),
+    staleTime: 60000,
+    refetchInterval: 120000,
+  }).data?.updates || []
+
+  // Watch WebSocket-updated instances to clear spinner when target state is reached
+  useEffect(() => {
+    setLoading(prev => {
+      const entries = Object.entries(prev).filter(([, v]) => v)
+      if (!entries.length) return prev
+      let changed = false
+      const next = { ...prev }
+      for (const [name, action] of entries) {
+        const target = TARGET_STATE[action]
+        if (!target) continue
+        const inst = instances.find(i => i.name === name)
+        if (inst?.state === target) {
+          next[name] = null
+          changed = true
+          clearTimeout(timeoutsRef.current[name])
+          delete timeoutsRef.current[name]
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [instances])
+
+  // Clean up safety timeouts on unmount
+  useEffect(() => {
+    return () => { Object.values(timeoutsRef.current).forEach(clearTimeout) }
+  }, [])
 
   function toggleSort(key) {
     if (!key) return
@@ -123,35 +186,53 @@ export default function InstancesTable({
   })
 
   const allSelected = sorted.length > 0 && sorted.every((i) => selectedNames.has(i.name))
+  const firstRowName = sorted[0]?.name || ''
 
-  async function doAction(name, fn, successMsg) {
-    setLoading((l) => ({ ...l, [name]: true }))
-    const MIN = new Promise((r) => setTimeout(r, 500))
-    const promise = Promise.all([fn(), MIN]).then(([res]) => {
-      qc.invalidateQueries({ queryKey: ['instances'] })
-      qc.invalidateQueries({ queryKey: ['stats'] })
-      qc.invalidateQueries({ queryKey: ['activity'] })
-      return res
-    })
+  useEffect(() => {
+    const cell = firstActionsCellRef.current
+    if (!cell) return undefined
 
-    sileo.promise(promise, {
-      loading: { title: 'Working…' },
-      success: { title: successMsg },
-      error: (e) => ({ title: e.message }),
-    })
-    try {
-      await promise
-    } catch (err) {
-      void err
+    const update = () => {
+      setActionsCellWidth(Math.max(0, cell.clientWidth - ACTION_CELL_HORIZONTAL_PADDING))
     }
-    setLoading((l) => ({ ...l, [name]: false }))
+
+    update()
+    if (typeof ResizeObserver === 'undefined') return undefined
+
+    const ro = new ResizeObserver(update)
+    ro.observe(cell)
+    return () => ro.disconnect()
+  }, [firstRowName, sorted.length])
+
+  async function doAction(name, actionKey, fn, successMsg) {
+    setLoading(l => ({ ...l, [name]: actionKey }))
+    try {
+      await fn()
+      invalidateInstanceQueries(qc)
+      sileo.success({ title: successMsg })
+      if (!TARGET_STATE[actionKey]) {
+        setLoading(l => ({ ...l, [name]: null }))
+        return
+      }
+      // Wait for WebSocket to push the new state, with a 30s safety fallback
+      clearTimeout(timeoutsRef.current[name])
+      timeoutsRef.current[name] = setTimeout(() => {
+        setLoading(l => l[name] === actionKey ? { ...l, [name]: null } : l)
+        delete timeoutsRef.current[name]
+      }, 30_000)
+    } catch (err) {
+      sileo.error({ title: err.message })
+      setLoading(l => ({ ...l, [name]: null }))
+      clearTimeout(timeoutsRef.current[name])
+      delete timeoutsRef.current[name]
+    }
   }
 
   return (
     <>
       <div className="instances-table-shell" style={{ background: 'var(--card-1)', borderRadius: 'var(--r-card)', border: '1px solid var(--border)', overflow: 'visible' }}>
         <div className="instances-table-scroll no-scrollbar" style={{ overflowX: 'auto', overflowY: 'visible' }}>
-          <table className="instances-table" style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
+          <table className="instances-table" style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
               <th style={{ padding: '12px 10px 12px 14px', width: 40 }}>
@@ -160,18 +241,20 @@ export default function InstancesTable({
               {COLUMNS.map(({ key, label }) => {
                 const active = sort.key === key
                 const SortIcon = active ? (sort.dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown
+                const centered = CENTERED_HEADERS.has(label)
                 return (
                   <th
                     key={label}
                     onClick={() => toggleSort(key)}
                     style={{
-                      padding: '12px 18px', textAlign: 'left',
+                      padding: '12px 18px',
+                      textAlign: centered ? 'center' : 'left',
                       fontSize: 10.5, fontWeight: 700, color: active ? 'var(--accent)' : 'var(--text-secondary)',
                       textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap',
                       cursor: key ? 'pointer' : 'default', userSelect: 'none',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: centered ? 'center' : 'flex-start' }}>
                       {label}
                       {key && <SortIcon size={11} style={{ opacity: active ? 1 : 0.4, flexShrink: 0 }} />}
                     </div>
@@ -183,14 +266,112 @@ export default function InstancesTable({
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ padding: '36px 18px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+                <td colSpan={10} style={{ padding: '36px 18px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
                   {searchQuery.trim() ? `No results for "${searchQuery}"` : 'No instances'}
                 </td>
               </tr>
             )}
             {sorted.map((inst, idx) => {
               const { name, state, ipv4 = [], image, cpus, memory, disk } = inst
-              const busy = loading[name]
+              const activeAction = loading[name] // e.g. 'start', 'stop', null
+              const busy = !!activeAction
+              const updatesEntry      = updatesItems.find(u => u.instance === name)
+              const hasPendingUpdates = (updatesEntry?.upgradable || 0) > 0
+              const updatesColor      = hasPendingUpdates ? '#22d3ee' : 'var(--text-muted)'
+              const actionItems = [
+                state !== 'Running' && {
+                  key: 'start',
+                  Icon: Power,
+                  color: 'var(--running)',
+                  label: 'Start',
+                  isLoading: activeAction === 'start',
+                  disabled: busy && activeAction !== 'start',
+                  onClick: () => doAction(name, 'start', () => api.startInstance(name), `Started ${name}`),
+                },
+                state === 'Running' && {
+                  key: 'stop',
+                  Icon: PowerOff,
+                  color: 'var(--stopped)',
+                  label: 'Shutdown',
+                  isLoading: activeAction === 'stop',
+                  disabled: busy && activeAction !== 'stop',
+                  onClick: () => doAction(name, 'stop', () => api.stopInstance(name), `Stopped ${name}`),
+                },
+                state === 'Running' && {
+                  key: 'suspend',
+                  Icon: Pause,
+                  color: 'var(--suspended)',
+                  label: 'Suspend',
+                  isLoading: activeAction === 'suspend',
+                  disabled: busy && activeAction !== 'suspend',
+                  onClick: () => doAction(name, 'suspend', () => api.suspendInstance(name), `Suspended ${name}`),
+                },
+                state === 'Running' && {
+                  key: 'restart',
+                  Icon: RotateCcw,
+                  color: '#60a5fa',
+                  label: 'Restart',
+                  isLoading: activeAction === 'restart',
+                  disabled: busy && activeAction !== 'restart',
+                  onClick: () => doAction(name, 'restart', () => api.restartInstance(name), `Restarted ${name}`),
+                },
+                state === 'Running' && {
+                  key: 'ssh',
+                  Icon: Key,
+                  color: '#facc15',
+                  label: 'SSH Access',
+                  isLoading: false,
+                  disabled: busy,
+                  onClick: () => setSshDialogInstance(name),
+                },
+                state === 'Running' && {
+                  key: 'updates',
+                  Icon: CircleArrowUp,
+                  color: updatesColor,
+                  label: hasPendingUpdates ? 'Updates' : 'No updates',
+                  isLoading: false,
+                  disabled: busy || !hasPendingUpdates,
+                  onClick: () => setUpdatesDialogInstance(name),
+                },
+                state === 'Stopped' && {
+                  key: 'snapshot',
+                  Icon: Files,
+                  color: '#a78bfa',
+                  label: 'Snapshot',
+                  isLoading: false,
+                  disabled: busy,
+                  onClick: () => doAction(name, 'snapshot', () => api.createSnapshot(name, randomSnapshotName(name)), `Snapshot created for ${name}`),
+                },
+                state === 'Stopped' && {
+                  key: 'clone',
+                  Icon: CopyPlus,
+                  color: '#34d399',
+                  label: 'Clone',
+                  isLoading: false,
+                  disabled: busy,
+                  onClick: () => setCloneDialog({ source: name, suggested: `${name}-clone` }),
+                },
+                state === 'Deleted' && {
+                  key: 'recover',
+                  Icon: ArchiveRestore,
+                  color: '#34d399',
+                  label: 'Recover',
+                  isLoading: activeAction === 'recover',
+                  disabled: busy && activeAction !== 'recover',
+                  onClick: () => doAction(name, 'recover', () => api.recoverInstance(name), `Recovered ${name}`),
+                },
+                {
+                  key: 'delete',
+                  Icon: Trash2,
+                  color: 'var(--stopped)',
+                  label: state === 'Deleted' ? 'Purge' : 'Delete',
+                  isLoading: activeAction === 'delete',
+                  disabled: busy && activeAction !== 'delete',
+                  onClick: () => setConfirmDelete(name),
+                },
+              ].filter(Boolean)
+              const { visibleActions, overflowActions } = splitVisibleAndOverflowActions(actionItems, actionsCellWidth)
+
               return (
                 <tr
                   key={name}
@@ -202,77 +383,80 @@ export default function InstancesTable({
                     <InstancesCheckbox checked={selectedNames.has(name)} onChange={() => onToggleSelect(name)} />
                   </td>
                   <td style={{ padding: '14px 18px' }}>
-                    <Link
-                      to={`/instances/${encodeURIComponent(name)}`}
-                      state={{ from: location.pathname }}
-                      className="mono"
-                      style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}
-                    >
-                      {name}
-                    </Link>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <Link
+                        to={`/instances/${encodeURIComponent(name)}`}
+                        state={{ from: location.pathname }}
+                        className="mono"
+                        style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      >
+                        {name}
+                      </Link>
+                      <Link
+                        to={`/instances/${encodeURIComponent(name)}`}
+                        state={{ from: location.pathname }}
+                        aria-label={`Open ${name}`}
+                        style={{
+                          color: 'var(--text-secondary)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          flexShrink: 0,
+                          transition: 'color 0.13s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
+                      >
+                        <ArrowUpRight size={13} />
+                      </Link>
+                    </div>
                   </td>
                   <td style={{ padding: '14px 18px' }}><InstanceStateBadge state={state} /></td>
                   <td style={{ padding: '14px 18px' }}><CopyIP ips={ipv4} /></td>
                   <td style={{ padding: '14px 18px' }}>
                     <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{image || '—'}</span>
                   </td>
-                  <td style={{ padding: '14px 18px' }}>
+                  <td style={{ padding: '14px 18px', textAlign: 'center' }}>
                     <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{cpus || '—'}</span>
                   </td>
-                  <td style={{ padding: '14px 18px' }}>
-                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{fmtResource(memory?.total)}</span>
+                  <td style={{ padding: '14px 18px', textAlign: 'center' }}>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      {fmtResource(memory?.total)}
+                    </span>
+                  </td>
+                  <td style={{ padding: '14px 18px', textAlign: 'center' }}>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      {fmtResource(disk?.total)}
+                    </span>
                   </td>
                   <td style={{ padding: '14px 18px' }}>
-                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{fmtResource(disk?.total)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'nowrap' }}>
+                      <ResourceUsage used={memory?.used} total={memory?.total} compact mode="percent" label="RAM" showTooltip />
+                      <ResourceUsage used={disk?.used} total={disk?.total} compact mode="percent" label="DSK" showTooltip />
+                    </div>
                   </td>
-                  <td style={{ padding: '14px 18px' }}>
-                    <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                      {busy ? (
-                        <Loader2 size={16} style={{ color: 'var(--text-secondary)', animation: 'spin 0.7s linear infinite' }} />
-                      ) : (
-                        <>
-                          {state !== 'Running' && (
-                            <ActionBtn icon={<Play size={14} />} color="var(--running)" title="Start" onClick={() => doAction(name, () => api.startInstance(name), `Started ${name}`)} />
-                          )}
-                          {state === 'Running' && (
-                            <ActionBtn icon={<Square size={14} />} color="var(--stopped)" title="Stop" onClick={() => doAction(name, () => api.stopInstance(name), `Stopped ${name}`)} />
-                          )}
-                          {state === 'Running' && (
-                            <ActionBtn icon={<Pause size={14} />} color="var(--suspended)" title="Suspend" onClick={() => doAction(name, () => api.suspendInstance(name), `Suspended ${name}`)} />
-                          )}
-                          {state === 'Running' && (
-                            <ActionBtn icon={<RotateCcw size={14} />} color="#60a5fa" title="Restart" onClick={() => doAction(name, () => api.restartInstance(name), `Restarted ${name}`)} />
-                          )}
-                          <ActionRadialMenu
-                            actions={[
-                              {
-                                label: 'SSH Access',
-                                icon: <KeyRound size={13} />,
-                                color: '#facc15',
-                                onClick: () => setSshDialogInstance(name),
-                              },
-                              {
-                                label: 'Updates',
-                                icon: <ShieldAlert size={13} />,
-                                color: '#60a5fa',
-                                onClick: () => setUpdatesDialogInstance(name),
-                              },
-                              {
-                                label: 'Snapshot',
-                                icon: <Camera size={13} />,
-                                color: '#a78bfa',
-                                onClick: () => doAction(name, () => api.createSnapshot(name), `Snapshot created for ${name}`),
-                              },
-                              {
-                                label: 'Clone',
-                                icon: <CopyPlus size={13} />,
-                                color: '#34d399',
-                                onClick: () => setCloneDialog({ source: name, suggested: `${name}-clone` }),
-                              },
-                            ]}
-                          />
-                          <ActionBtn icon={<Trash2 size={14} />} color="var(--stopped)" title="Delete" onClick={() => setConfirmDelete(name)} />
-                        </>
+                  <td ref={idx === 0 ? firstActionsCellRef : undefined} style={{ padding: '14px 18px' }}>
+                    <div style={{ display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}>
+                      {visibleActions.map((action) => (
+                        <ActionBtn
+                          key={action.key}
+                          icon={<action.Icon size={14} />}
+                          color={action.color}
+                          label={action.label}
+                          isLoading={action.isLoading}
+                          disabled={action.disabled}
+                          onClick={action.onClick}
+                        />
+                      ))}
+                      {overflowActions.length > 0 && (
+                        <ActionRadialMenu
+                          actions={overflowActions.map((action) => ({
+                            label: action.label,
+                            icon: <action.Icon size={14} />,
+                            color: action.color,
+                            onClick: action.onClick,
+                            disabled: action.disabled || action.isLoading,
+                          }))}
+                        />
                       )}
                     </div>
                   </td>
@@ -292,7 +476,7 @@ export default function InstancesTable({
           confirmValue={confirmDelete}
           variant="name"
           onClose={() => setConfirmDelete(null)}
-          onConfirm={() => doAction(confirmDelete, () => api.deleteInstance(confirmDelete), `Deleted ${confirmDelete}`)}
+          onConfirm={() => doAction(confirmDelete, 'delete', () => api.deleteInstance(confirmDelete), `Deleted ${confirmDelete}`)}
         />
       )}
 
@@ -303,6 +487,7 @@ export default function InstancesTable({
           onClose={() => setCloneDialog(null)}
           onConfirm={(cloneName) => doAction(
             cloneDialog.source,
+            'clone',
             () => api.cloneInstance(cloneDialog.source, cloneName),
             `Cloned ${cloneDialog.source} → ${cloneName}`,
           )}

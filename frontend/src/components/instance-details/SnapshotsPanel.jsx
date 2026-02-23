@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import { Camera, History, Trash2 } from 'lucide-react'
+import { Camera, History, Trash2, Dices } from 'lucide-react'
+import { randomSnapshotName } from '../instances/instancesUtils'
+import Tooltip from '../Tooltip'
+
+const EMPTY_SNAPSHOTS = []
 
 function snapshotName(item) {
   if (!item || typeof item !== 'object') return ''
@@ -9,8 +13,41 @@ function snapshotName(item) {
   return ''
 }
 
+function fmtDate(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function ActionBtn({ icon, color, label, onClick, disabled }) {
+  return (
+    <Tooltip label={label}>
+      <button
+        type="button"
+        aria-label={label}
+        onClick={onClick}
+        disabled={disabled}
+        style={{
+          width: 32, height: 32, borderRadius: 8, border: 'none',
+          background: 'transparent', color: disabled ? 'var(--text-muted)' : color,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background 0.12s', flexShrink: 0,
+          opacity: disabled ? 0.35 : 1,
+        }}
+        onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = `color-mix(in srgb, ${color} 12%, transparent)` }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+      >
+        {icon}
+      </button>
+    </Tooltip>
+  )
+}
+
 export default function SnapshotsPanel({
-  snapshots = [],
+  instanceName = '',
+  snapshots = EMPTY_SNAPSHOTS,
   loading = false,
   onCreate,
   onRestore,
@@ -21,22 +58,42 @@ export default function SnapshotsPanel({
 
   async function submitCreate(event) {
     event.preventDefault()
-    await onCreate(name.trim() || undefined, comment.trim() || undefined)
+    await onCreate(name.trim(), comment.trim() || undefined)
     setName('')
     setComment('')
   }
 
   return (
-    <div className="card">
+    <div>
       <p className="section-title" style={{ marginBottom: 12 }}>Snapshots</p>
 
-      <form onSubmit={submitCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, marginBottom: 14 }}>
-        <input
-          className="input"
-          placeholder="Snapshot name (optional)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+      <form onSubmit={submitCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, marginBottom: 16 }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <input
+            className="input"
+            placeholder="Snapshot name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{ paddingRight: 34, width: '100%' }}
+            required
+          />
+          <button
+            type="button"
+            title="Random name"
+            onClick={() => setName(randomSnapshotName(instanceName))}
+            style={{
+              position: 'absolute', right: 6,
+              background: 'none', border: 'none', padding: 2,
+              cursor: 'pointer', display: 'flex', alignItems: 'center',
+              color: 'var(--text-secondary)', opacity: 0.7,
+              transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
+          >
+            <Dices size={14} />
+          </button>
+        </div>
         <input
           className="input"
           placeholder="Comment (optional)"
@@ -53,51 +110,71 @@ export default function SnapshotsPanel({
           No snapshots for this instance.
         </p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {snapshots.map((item, index) => {
-            const nameValue = snapshotName(item)
-            const canAct = Boolean(nameValue)
-            return (
-              <div key={`${nameValue || 'snapshot'}-${index}`} style={{
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-                padding: '10px 12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 10,
-                flexWrap: 'wrap',
-                background: 'var(--card-2)',
-              }}>
-                <div style={{ minWidth: 0 }}>
-                  <p className="mono" style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 3 }}>
-                    {nameValue || 'Unnamed snapshot'}
-                  </p>
-                  <p className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                    {item.comment || item.created_at || item.created || ''}
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    className="btn-ghost"
-                    style={{ height: 32, padding: '0 10px' }}
-                    disabled={!canAct || loading}
-                    onClick={() => onRestore(nameValue)}
+        <div className="instances-table-shell" style={{ background: 'var(--card-1)', borderRadius: 'var(--r-card)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                {['Name', 'Created', 'Comment', 'Actions'].map((col) => (
+                  <th key={col} style={{
+                    padding: '10px 16px', textAlign: 'left',
+                    fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap',
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase', letterSpacing: '0.08em',
+                  }}>{col}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {snapshots.map((item, index) => {
+                const nameValue = snapshotName(item)
+                const canAct = Boolean(nameValue)
+                const created = item.created_at || item.created || ''
+                const commentVal = item.comment || ''
+                return (
+                  <tr
+                    key={nameValue || `snap-${index}`}
+                    style={{ borderBottom: index < snapshots.length - 1 ? '1px solid var(--border)' : 'none', transition: 'background 0.1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.018)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <History size={12} /> Restore
-                  </button>
-                  <button
-                    className="btn-danger"
-                    style={{ height: 32, padding: '0 10px' }}
-                    disabled={!canAct || loading}
-                    onClick={() => onDelete(nameValue)}
-                  >
-                    <Trash2 size={12} /> Delete
-                  </button>
-                </div>
-              </div>
-            )
-          })}
+                    <td style={{ padding: '12px 16px' }}>
+                      <span className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {nameValue || '—'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                        {fmtDate(created)}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px', maxWidth: 220 }}>
+                      <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                        {commentVal || '—'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <ActionBtn
+                          icon={<History size={14} />}
+                          color="#a78bfa"
+                          label="Restore"
+                          disabled={!canAct || loading}
+                          onClick={() => onRestore(nameValue)}
+                        />
+                        <ActionBtn
+                          icon={<Trash2 size={14} />}
+                          color="var(--stopped)"
+                          label="Delete"
+                          disabled={!canAct || loading}
+                          onClick={() => onDelete(nameValue)}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

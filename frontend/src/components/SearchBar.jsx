@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, X, Server } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Search, X, Box } from 'lucide-react'
 import { useInstances } from '../hooks/useInstances'
 
 function scoreMatch(text, query) {
@@ -11,6 +12,8 @@ export default function SearchBar() {
   const [query, setQuery] = useState('')
   const inputRef = useRef(null)
   const containerRef = useRef(null)
+  const navigate = useNavigate()
+  const location = useLocation()
   const { instances } = useInstances()
 
   // Cmd/Ctrl+K to open
@@ -42,6 +45,19 @@ export default function SearchBar() {
         (i.ipv4 || []).some(ip => scoreMatch(ip, q))
       )
     : []
+  const quickItems = !q
+    ? [...instances]
+      .filter((i) => i.state === 'Running')
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+      .slice(0, 8)
+    : []
+  const shown = q ? results.slice(0, 12) : quickItems
+
+  function openInstance(name) {
+    setOpen(false)
+    setQuery('')
+    navigate(`/instances/${encodeURIComponent(name)}`, { state: { from: location.pathname } })
+  }
 
   function stateColor(state) {
     if (state === 'Running') return 'var(--running)'
@@ -68,10 +84,14 @@ export default function SearchBar() {
         <Search size={13} style={{ flexShrink: 0 }} />
         <span style={{ flex: 1, textAlign: 'left', fontSize: 12.5 }}>Search…</span>
         <kbd className="global-search-kbd" style={{
-          fontSize: 10, fontFamily: 'IBM Plex Mono',
+          fontSize: 11.5, fontFamily: 'IBM Plex Mono', fontWeight: 500,
           background: 'var(--card-3)', border: '1px solid var(--border)',
-          borderRadius: 5, padding: '2px 5px', color: 'var(--text-secondary)', flexShrink: 0,
-        }}>⌘K</kbd>
+          borderRadius: 6, padding: '3px 7px', color: 'var(--text-primary)', flexShrink: 0,
+          lineHeight: 1, display: 'inline-flex', alignItems: 'center', gap: 3,
+        }}>
+          <span style={{ fontSize: 13.5, lineHeight: 1, transform: 'translateY(1px)' }}>⌘</span>
+          <span>K</span>
+        </kbd>
       </button>
 
       {/* Dropdown — wider, right-anchored so it doesn't clip off screen */}
@@ -80,7 +100,7 @@ export default function SearchBar() {
           position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 500,
           width: 'min(460px, calc(100vw - 36px))',
           background: 'var(--card-1)', border: '1px solid var(--border)',
-          borderRadius: 14, boxShadow: '0 16px 48px rgba(0,0,0,0.55)',
+          borderRadius: 14, boxShadow: 'var(--shadow-lg)',
           overflow: 'hidden',
         }}>
           {/* Input inside dropdown */}
@@ -90,8 +110,18 @@ export default function SearchBar() {
               ref={inputRef}
               value={query}
               onChange={e => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (shown.length > 0) {
+                    openInstance(shown[0].name)
+                  } else {
+                    setOpen(false)
+                    navigate('/instances', { state: { from: location.pathname } })
+                  }
+                }
+              }}
               placeholder="Search by name, state, IP, image…"
-              autoFocus
               style={{
                 flex: 1, background: 'none', border: 'none', outline: 'none',
                 color: 'var(--text-primary)', fontSize: 13,
@@ -109,7 +139,7 @@ export default function SearchBar() {
           <div style={{ maxHeight: 320, overflowY: 'auto' }}>
             {!q && (
               <p style={{ padding: '16px 14px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'IBM Plex Mono', margin: 0 }}>
-                {instances.length} instance{instances.length !== 1 ? 's' : ''} — type to search
+                QUICK ACCESS
               </p>
             )}
             {q && results.length === 0 && (
@@ -117,15 +147,18 @@ export default function SearchBar() {
                 No results for "{q}"
               </p>
             )}
-            {results.map(inst => (
-              <div
+            {shown.map(inst => (
+              <button
                 key={inst.name}
-                onClick={() => { setOpen(false); setQuery('') }}
+                type="button"
+                onClick={() => openInstance(inst.name)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 11,
                   padding: '10px 14px', cursor: 'pointer',
                   borderBottom: '1px solid var(--border)',
                   transition: 'background 0.1s',
+                  width: '100%', textAlign: 'left',
+                  background: 'none', border: 'none',
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -136,15 +169,11 @@ export default function SearchBar() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: stateColor(inst.state),
                 }}>
-                  <Server size={13} />
+                  <Box size={13} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p className="mono" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1, marginBottom: 3 }}>
+                  <p className="mono" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1, margin: 0 }}>
                     {inst.name}
-                  </p>
-                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1 }}>
-                    {inst.image || '—'}
-                    {inst.ipv4?.length ? ` · ${inst.ipv4[0]}` : ''}
                   </p>
                 </div>
                 <span className="badge" style={{
@@ -156,7 +185,7 @@ export default function SearchBar() {
                 }}>
                   {inst.state}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>

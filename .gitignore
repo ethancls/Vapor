@@ -1,0 +1,21 @@
+# Build artifacts
+vapor
+vapor-linux-*
+vapor-macos-*
+tmp/
+
+# Frontend build output
+frontend/dist/
+
+# Runtime data
+vapor.db
+*.db-shm
+*.db-wal
+
+# Environment
+.env
+
+# Editor / OS
+.DS_Store
+*.swp
+*.swo

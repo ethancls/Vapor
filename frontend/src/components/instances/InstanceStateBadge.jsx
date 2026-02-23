@@ -1,9 +1,17 @@
+const STATE_CLASS = {
+  Running:   'state-badge-running',
+  Stopped:   'state-badge-stopped',
+  Suspended: 'state-badge-suspended',
+  Deleted:   'state-badge-deleted',
+  Starting:  'state-badge-starting',
+  Stopping:  'state-badge-stopping',
+}
+
 export default function InstanceStateBadge({ state }) {
-  const cls = state === 'Running' ? 'badge-running' : state === 'Stopped' ? 'badge-stopped' : 'badge-suspended'
-  const dot = state === 'Running' ? 'var(--running)' : state === 'Stopped' ? 'var(--stopped)' : 'var(--suspended)'
+  const cls = STATE_CLASS[state] ?? 'state-badge-unknown'
   return (
-    <span className={`badge ${cls}`}>
-      <span className="badge-dot" style={{ background: dot }} />
+    <span className={`state-badge ${cls}`}>
+      <span className={state === 'Running' ? 'state-badge-dot state-badge-dot--pulse' : 'state-badge-dot'} />
       {state}
     </span>
   )

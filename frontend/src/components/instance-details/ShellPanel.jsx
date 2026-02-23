@@ -1,69 +1,193 @@
-import { useState, useRef, useEffect } from 'react'
-import { Trash2 } from 'lucide-react'
-import { api } from '../../api/client'
-
-const WELCOME = `Vapor Shell  —  multipass exec\nEach command runs with the tracked working directory.\nUse ↑ / ↓ to navigate history.\n`
+import { useEffect, useRef, useState } from 'react'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
 
 export default function ShellPanel({ name, isRunning }) {
-  const [lines, setLines]         = useState([{ type: 'info', text: WELCOME }])
-  const [input, setInput]         = useState('')
-  const [busy, setBusy]           = useState(false)
-  const [cwd, setCwd]             = useState('/home/ubuntu')
-  const [cmdHistory, setCmdHistory] = useState([])
-  const [histIdx, setHistIdx]     = useState(-1)
-  const bottomRef = useRef(null)
-  const inputRef  = useRef(null)
+  const containerRef = useRef(null)
+  const termRef      = useRef(null)
+  const wsRef        = useRef(null)
+  const fitRef       = useRef(null)
+  const connectDelayRef = useRef(null)
+  const closingRef = useRef(false)
+  const [status, setStatus] = useState('connecting') // 'connecting' | 'open' | 'closed' | 'error'
+  const [errMsg, setErrMsg] = useState('')
+  const storageKey = `vapor-shell-session:${name}`
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [lines])
-
-  function push(...newLines) {
-    setLines(prev => [...prev, ...newLines])
-  }
-
-  async function submit(e) {
-    e?.preventDefault()
-    const cmd = input.trim()
-    if (!cmd || busy) return
-    setInput('')
-    setHistIdx(-1)
-    setCmdHistory(prev => [cmd, ...prev.slice(0, 99)])
-    push({ type: 'prompt', text: cmd, cwd })
-    setBusy(true)
+  function getStoredSessionID() {
     try {
-      // Wrap to capture new cwd after command
-      const wrapped = `${cmd}; __vc_ec=$?; printf '\\n__VAPOR_CWD:%s\\n' "$(pwd)"; exit $__vc_ec`
-      const res = await api.execInstance(name, ['/bin/bash', '-c', wrapped], { working_directory: cwd })
-      let stdout = res.stdout || ''
-      const cwdMatch = stdout.match(/__VAPOR_CWD:(.+?)(?:\r?\n|$)/)
-      if (cwdMatch) {
-        setCwd(cwdMatch[1].trim())
-        stdout = stdout.replace(/\n?__VAPOR_CWD:.*(?:\r?\n|$)/, '')
-      }
-      if (stdout.trim())      push({ type: 'stdout',   text: stdout })
-      if (res.stderr?.trim()) push({ type: 'stderr',   text: res.stderr })
-      if (res.exit_code !== 0) push({ type: 'exitcode', text: res.exit_code })
-    } catch (err) {
-      push({ type: 'error', text: err.message })
-    } finally {
-      setBusy(false)
-      inputRef.current?.focus()
+      return window.sessionStorage.getItem(storageKey) || ''
+    } catch {
+      return ''
     }
   }
 
-  function onKeyDown(e) {
-    if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      const next = histIdx + 1
-      if (next < cmdHistory.length) { setHistIdx(next); setInput(cmdHistory[next]) }
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      const next = histIdx - 1
-      if (next < 0) { setHistIdx(-1); setInput('') }
-      else { setHistIdx(next); setInput(cmdHistory[next]) }
+  function storeSessionID(id) {
+    if (!id) return
+    try {
+      window.sessionStorage.setItem(storageKey, id)
+    } catch {
+      // ignore storage errors (private mode / quota / etc.)
     }
   }
+
+  function connect() {
+    if (!containerRef.current) return
+    setStatus('connecting')
+    setErrMsg('')
+
+    // Clean up any previous terminal
+    if (termRef.current) {
+      termRef.current.dispose()
+      termRef.current = null
+    }
+    if (wsRef.current) {
+      wsRef.current.onopen = null
+      wsRef.current.onmessage = null
+      wsRef.current.onerror = null
+      wsRef.current.onclose = null
+      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+        wsRef.current.close(1000, 'reconnect')
+      }
+      wsRef.current = null
+    }
+
+    const term = new Terminal({
+      fontFamily: '"IBM Plex Mono", "Cascadia Code", monospace',
+      fontSize: 13,
+      lineHeight: 1.5,
+      cursorStyle: 'bar',
+      cursorBlink: true,
+      scrollback: 2000,
+      theme: {
+        background:   '#0c0c0c',
+        foreground:   '#d4d4d4',
+        cursor:       '#b5f23d',
+        cursorAccent: '#0c0c0c',
+        selectionBackground: 'rgba(181,242,61,0.2)',
+        black:   '#000000', brightBlack:   '#666666',
+        red:     '#ff5555', brightRed:     '#ff6e67',
+        green:   '#50fa7b', brightGreen:   '#5af78e',
+        yellow:  '#f1fa8c', brightYellow:  '#f4f99d',
+        blue:    '#6272a4', brightBlue:    '#6272a4',
+        magenta: '#ff79c6', brightMagenta: '#ff92d0',
+        cyan:    '#8be9fd', brightCyan:    '#9aedfe',
+        white:   '#bfbfbf', brightWhite:   '#e2e2e2',
+      },
+    })
+
+    const fit = new FitAddon()
+    term.loadAddon(fit)
+    term.open(containerRef.current)
+    fit.fit()
+
+    termRef.current = term
+    fitRef.current  = fit
+
+    // Build WS URL from current origin
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const params = new URLSearchParams()
+    const existingSessionID = getStoredSessionID()
+    if (existingSessionID) {
+      params.set('session', existingSessionID)
+    }
+    const wsUrl = `${proto}//${window.location.host}/ws/instances/${encodeURIComponent(name)}/shell${params.toString() ? `?${params.toString()}` : ''}`
+
+    const ws = new WebSocket(wsUrl)
+    ws.binaryType = 'arraybuffer'
+    wsRef.current = ws
+    closingRef.current = false
+
+    ws.onopen = () => {
+      setStatus('open')
+      // Send initial terminal size
+      const { cols, rows } = term
+      ws.send(JSON.stringify({ type: 'resize', cols, rows }))
+    }
+
+    ws.onmessage = (e) => {
+      if (e.data instanceof ArrayBuffer) {
+        term.write(new Uint8Array(e.data))
+        return
+      }
+      if (typeof e.data === 'string') {
+        try {
+          const msg = JSON.parse(e.data)
+          if (msg?.type === 'session' && typeof msg.id === 'string' && msg.id.trim()) {
+            storeSessionID(msg.id.trim())
+            return
+          }
+          if (msg?.type === 'error' && msg?.message) {
+            setStatus('error')
+            setErrMsg(String(msg.message))
+            return
+          }
+        } catch {
+          // not a JSON control frame; treat as terminal output
+        }
+        term.write(e.data)
+      }
+    }
+
+    ws.onerror = () => {
+      if (closingRef.current) return
+      setStatus('error')
+      setErrMsg('WebSocket connection failed')
+    }
+
+    ws.onclose = (e) => {
+      if (closingRef.current) return
+      setStatus('closed')
+      if (e.code !== 1000 && e.code !== 1001) {
+        setErrMsg(`Connection closed (${e.code})`)
+      }
+    }
+
+    // Keyboard → WebSocket
+    term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(new TextEncoder().encode(data))
+      }
+    })
+  }
+
+  // Mount: create terminal + connect
+  useEffect(() => {
+    if (!isRunning) return
+    // Delay connect so React StrictMode dev cycle does not open+close a WS immediately.
+    connectDelayRef.current = setTimeout(() => {
+      connect()
+    }, 0)
+
+    // Resize observer — update PTY size when div resizes
+    const ro = new ResizeObserver(() => {
+      if (!fitRef.current || !termRef.current) return
+      fitRef.current.fit()
+      const { cols, rows } = termRef.current
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }))
+      }
+    })
+    if (containerRef.current) ro.observe(containerRef.current)
+
+    return () => {
+      clearTimeout(connectDelayRef.current)
+      ro.disconnect()
+      closingRef.current = true
+      if (wsRef.current) {
+        wsRef.current.onopen = null
+        wsRef.current.onmessage = null
+        wsRef.current.onerror = null
+        wsRef.current.onclose = null
+        if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+          wsRef.current.close(1000, 'cleanup')
+        }
+      }
+      termRef.current?.dispose()
+      wsRef.current  = null
+      termRef.current = null
+    }
+  }, [name, isRunning]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isRunning) {
     return (
@@ -81,13 +205,10 @@ export default function ShellPanel({ name, isRunning }) {
     )
   }
 
-  const shortCwd = cwd.replace('/home/ubuntu', '~')
-  const prompt   = `ubuntu@${name}:${shortCwd}$`
-
   return (
     <div style={{ background: '#0c0c0c', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
 
-      {/* ── Title bar ── */}
+      {/* Title bar */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -99,104 +220,46 @@ export default function ShellPanel({ name, isRunning }) {
           <div style={{ width: 11, height: 11, borderRadius: '50%', background: '#28c840' }} />
         </div>
         <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          {name} — bash
+          {name}
+          {status === 'connecting' && ' · connecting…'}
+          {status === 'closed'     && ' · disconnected'}
+          {status === 'error'      && ' · error'}
         </span>
-        <button
-          onClick={() => { setLines([{ type: 'info', text: WELCOME }]); setCwd('/home/ubuntu') }}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--text-muted)', padding: '2px 6px', borderRadius: 5,
-            display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 11, fontFamily: 'Syne', transition: 'color 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-secondary)' }}
-          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)' }}
-        >
-          <Trash2 size={11} /> Clear
-        </button>
+        {(status === 'closed' || status === 'error') ? (
+          <button
+            onClick={connect}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--accent)', padding: '2px 6px', borderRadius: 5,
+              fontSize: 11, fontFamily: 'Syne', fontWeight: 700,
+              transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.opacity = '0.7' }}
+            onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+          >
+            Reconnect
+          </button>
+        ) : (
+          <span style={{ width: 70 }} />
+        )}
       </div>
 
-      {/* ── Output ── */}
-      <div
-        onClick={() => inputRef.current?.focus()}
-        className="no-scrollbar"
-        style={{
-          height: 440, overflowY: 'auto',
-          padding: '14px 18px', cursor: 'text',
-          fontFamily: 'IBM Plex Mono', fontSize: 13, lineHeight: 1.7,
-        }}
-      >
-        {lines.map((line, i) => {
-          if (line.type === 'info') return (
-            <pre key={i} style={{ margin: 0, color: '#4a4a4a', fontSize: 11.5, whiteSpace: 'pre-wrap' }}>
-              {line.text}
-            </pre>
-          )
-          if (line.type === 'prompt') return (
-            <div key={i} style={{ marginTop: i > 0 ? 4 : 0 }}>
-              <span style={{ color: '#b5f23d', userSelect: 'none' }}>
-                ubuntu@{name}:{line.cwd.replace('/home/ubuntu', '~')}${' '}
-              </span>
-              <span style={{ color: '#efefef' }}>{line.text}</span>
-            </div>
-          )
-          if (line.type === 'stdout') return (
-            <pre key={i} style={{ margin: 0, color: '#d4d4d4', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-              {line.text}
-            </pre>
-          )
-          if (line.type === 'stderr') return (
-            <pre key={i} style={{ margin: 0, color: '#ff9f0a', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-              {line.text}
-            </pre>
-          )
-          if (line.type === 'exitcode') return (
-            <div key={i} style={{ fontSize: 11, color: '#f04747', opacity: 0.75 }}>
-              [exit {line.text}]
-            </div>
-          )
-          if (line.type === 'error') return (
-            <div key={i} style={{ color: '#f04747' }}>error: {line.text}</div>
-          )
-          return null
-        })}
-        {busy && <span style={{ color: '#4a4a4a', fontSize: 11 }}>running…</span>}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* ── Input ── */}
-      <form
-        onSubmit={submit}
-        style={{
-          display: 'flex', alignItems: 'center',
-          padding: '9px 18px', gap: 0,
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          background: '#0e0e0e',
-        }}
-      >
-        <span style={{
-          fontFamily: 'IBM Plex Mono', fontSize: 13,
-          color: '#b5f23d', whiteSpace: 'nowrap', userSelect: 'none', marginRight: 8,
+      {/* Error banner */}
+      {errMsg && (
+        <div style={{
+          padding: '6px 14px', background: 'rgba(240,71,71,0.08)',
+          borderBottom: '1px solid rgba(240,71,71,0.15)',
+          fontSize: 11.5, color: '#f06565', fontFamily: 'IBM Plex Mono',
         }}>
-          {prompt}&nbsp;
-        </span>
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          disabled={busy}
-          autoFocus
-          spellCheck={false}
-          autoComplete="off"
-          autoCorrect="off"
-          style={{
-            flex: 1, background: 'none', border: 'none', outline: 'none',
-            fontFamily: 'IBM Plex Mono', fontSize: 13,
-            color: '#efefef', caretColor: '#b5f23d',
-          }}
-        />
-      </form>
+          {errMsg}
+        </div>
+      )}
+
+      {/* Terminal container */}
+      <div
+        ref={containerRef}
+        style={{ padding: '10px 6px', minHeight: 460 }}
+      />
     </div>
   )
 }

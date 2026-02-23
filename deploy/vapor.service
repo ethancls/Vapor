@@ -1,0 +1,16 @@
+[Unit]
+Description=Vapor — Multipass Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+EnvironmentFile=/etc/vapor/vapor.env
+ExecStart=/usr/local/bin/vapor
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

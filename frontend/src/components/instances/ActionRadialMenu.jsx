@@ -1,15 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { CircleEllipsis } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Grip } from 'lucide-react'
+import Tooltip from '../Tooltip'
 
-export default function ActionRadialMenu({ actions = [] }) {
+const EMPTY_ACTIONS = []
+
+export default function ActionRadialMenu({ actions = EMPTY_ACTIONS }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef(null)
+  const btnRef  = useRef(null)
+  const menuRef = useRef(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
   const enabled = actions.filter((a) => !a.hidden)
+  const triggerLabel = 'More actions'
 
   useEffect(() => {
     if (!open) return undefined
     const onDocClick = (event) => {
-      if (!rootRef.current || rootRef.current.contains(event.target)) return
+      if (rootRef.current?.contains(event.target)) return
+      if (menuRef.current?.contains(event.target)) return
       setOpen(false)
     }
     const onEsc = (event) => {
@@ -23,54 +32,64 @@ export default function ActionRadialMenu({ actions = [] }) {
     }
   }, [open])
 
+  function handleToggle(event) {
+    event.stopPropagation()
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setMenuPos({
+        top:   rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      })
+    }
+    setOpen((v) => !v)
+  }
+
   if (!enabled.length) return null
 
   return (
     <div ref={rootRef} style={{ position: 'relative', width: 34, height: 34, flexShrink: 0 }}>
-      <button
-        title={open ? 'Close more actions' : 'More actions'}
-        onClick={(event) => {
-          event.stopPropagation()
-          setOpen((value) => !value)
-        }}
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 999,
-          border: '1px solid var(--border)',
-          background: open ? 'var(--accent-dim)' : 'transparent',
-          color: open ? 'var(--accent)' : 'var(--text-secondary)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'background 0.14s ease, color 0.14s ease',
-          position: 'relative',
-          zIndex: 5,
-        }}
-      >
-        <CircleEllipsis size={14} />
-      </button>
-
-      {open && (
-        <div
+      <Tooltip label={triggerLabel}>
+        <button
+          ref={btnRef}
+          type="button"
+          aria-label={triggerLabel}
+          onClick={handleToggle}
           style={{
-            position: 'absolute',
-            right: 0,
-            bottom: 'calc(100% + 6px)',
+            width: 34, height: 34, borderRadius: 999,
+            border: 'none',
+            background: open ? 'var(--accent-dim)' : 'transparent',
+            color: open ? 'var(--accent)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background 0.14s ease, color 0.14s ease',
+            position: 'relative', zIndex: 5,
+          }}
+        >
+          <Grip size={14} />
+        </button>
+      </Tooltip>
+
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top:   menuPos.top,
+            right: menuPos.right,
             minWidth: 150,
             borderRadius: 12,
             border: '1px solid var(--border)',
             background: 'var(--card-3)',
             boxShadow: 'var(--shadow-lg)',
             padding: 5,
-            zIndex: 20,
+            zIndex: 9999,
           }}
         >
           {enabled.map((action) => (
             <button
               key={action.label}
-              title={action.label}
+              type="button"
+              aria-label={action.label}
               disabled={action.disabled}
               onClick={(event) => {
                 event.stopPropagation()
@@ -78,19 +97,12 @@ export default function ActionRadialMenu({ actions = [] }) {
                 if (!action.disabled) action.onClick()
               }}
               style={{
-                width: '100%',
-                border: 'none',
-                background: 'none',
-                borderRadius: 8,
+                width: '100%', border: 'none', background: 'none', borderRadius: 8,
                 color: action.color || 'var(--text-secondary)',
                 opacity: action.disabled ? 0.45 : 1,
                 cursor: action.disabled ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: 12,
-                fontWeight: 600,
-                padding: '8px 10px',
+                display: 'flex', alignItems: 'center', gap: 8,
+                fontSize: 12, fontWeight: 600, padding: '8px 10px',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
@@ -99,7 +111,8 @@ export default function ActionRadialMenu({ actions = [] }) {
               <span>{action.label}</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

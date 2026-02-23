@@ -39,7 +39,7 @@ export default function InstancesControls({
           <input
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Search..."
+            placeholder="Search instances..."
             style={{
               background: 'none', border: 'none', outline: 'none',
               color: 'var(--text-primary)', fontFamily: 'IBM Plex Mono', fontSize: 12,
@@ -77,6 +77,8 @@ export default function InstancesControls({
           height: 36,
         }}>
           <button
+            type="button"
+            aria-label="Table view"
             className="btn-ghost"
             onClick={() => onViewModeChange('table')}
             style={{
@@ -87,11 +89,12 @@ export default function InstancesControls({
               color: viewMode === 'table' ? 'var(--accent)' : 'var(--text-secondary)',
               padding: '0 12px',
             }}
-            title="Table view"
           >
             <Table2 size={13} />
           </button>
           <button
+            type="button"
+            aria-label="Card view"
             className="btn-ghost"
             onClick={() => onViewModeChange('cards')}
             style={{
@@ -102,7 +105,6 @@ export default function InstancesControls({
               color: viewMode === 'cards' ? 'var(--accent)' : 'var(--text-secondary)',
               padding: '0 12px',
             }}
-            title="Card view"
           >
             <Grid3X3 size={13} />
           </button>

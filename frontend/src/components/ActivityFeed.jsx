@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import { Play, Square, Pause, Trash2, Rocket, Camera, Activity } from 'lucide-react'
+import { Pause, Trash2, Rocket, Activity, Power, PowerOff, Files, Key } from 'lucide-react'
 import { useActivity } from '../hooks/useActivity'
 
 const ACTION_META = {
-  start:    { Icon: Play,     color: 'var(--running)',   bg: 'rgba(181,242,61,0.08)',  accent: '#b5f23d' },
-  stop:     { Icon: Square,   color: 'var(--stopped)',   bg: 'rgba(240,71,71,0.08)',   accent: '#f04747' },
+  start:    { Icon: Power,     color: 'var(--running)',   bg: 'rgba(181,242,61,0.08)',  accent: '#b5f23d' },
+  stop:     { Icon: PowerOff,   color: 'var(--stopped)',   bg: 'rgba(240,71,71,0.08)',   accent: '#f04747' },
   suspend:  { Icon: Pause,    color: 'var(--suspended)', bg: 'rgba(255,159,10,0.08)',  accent: '#ff9f0a' },
   delete:   { Icon: Trash2,   color: '#555',             bg: 'rgba(255,255,255,0.04)', accent: '#555'    },
   launch:   { Icon: Rocket,   color: '#60a5fa',          bg: 'rgba(96,165,250,0.08)',  accent: '#60a5fa' },
-  snapshot: { Icon: Camera,   color: '#a78bfa',          bg: 'rgba(167,139,250,0.08)', accent: '#a78bfa' },
+  snapshot: { Icon: Files,   color: '#a78bfa',          bg: 'rgba(167,139,250,0.08)', accent: '#a78bfa' },
+  ssh_password:      { Icon: Key, color: '#555',             bg: 'rgba(255,255,255,0.04)', accent: '#555'    },
 }
 
 const FILTERS = ['ALL', 'START', 'STOP', 'LAUNCH', 'SNAPSHOT']
@@ -54,8 +55,8 @@ export default function ActivityFeed() {
       <div style={{ overflowY: 'auto', maxHeight: 400 }}>
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[...Array(5)].map((_, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
+            {['s0','s1','s2','s3','s4'].map(k => (
+              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
                 <div className="skeleton" style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div className="skeleton" style={{ width: '55%', height: 12, borderRadius: 6, marginBottom: 7 }} />
@@ -86,7 +87,7 @@ export default function ActivityFeed() {
                 const time = new Date(e.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
                 const success = e.status === 'success'
                 return (
-                  <div key={i} style={{
+                  <div key={`${e.vm_name || ''}-${e.action || ''}-${e.timestamp || i}`} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '9px 12px',
                     borderRadius: 10,

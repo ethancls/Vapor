@@ -50,11 +50,12 @@ export default function ConfirmModal({
             disabled={loading || !canArm}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 7,
-              padding: '0 18px', height: 36, borderRadius: 'var(--r-sm)',
+              padding: '0 18px', height: 38, borderRadius: 'var(--r-sm)',
               border: '1px solid',
               cursor: loading || !canArm ? 'not-allowed' : 'pointer',
               fontFamily: 'Syne', fontWeight: 700, fontSize: 13,
               whiteSpace: 'nowrap', lineHeight: 1,
+              boxSizing: 'border-box',
               transition: 'background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s',
               ...(armed ? {
                 background: 'var(--stopped)',

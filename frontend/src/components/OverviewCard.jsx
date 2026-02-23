@@ -14,12 +14,12 @@ export default function OverviewCard({ onNewInstance }) {
   const { data: stats, isLoading } = useStats()
 
   const items = [
-    { label: 'Total VMs',  value: stats?.total       ?? '—' },
-    { label: 'Running',    value: stats?.running      ?? '—' },
-    { label: 'Stopped',    value: stats?.stopped      ?? '—' },
-    { label: 'CPUs alloc', value: stats?.total_cpus   ?? '—' },
-    { label: 'RAM used',   value: stats ? fmt(stats.total_ram_used)  : '—' },
-    { label: 'Disk used',  value: stats ? fmt(stats.total_disk_used) : '—' },
+    { label: 'Total VMs',  value: stats?.total      ?? '—' },
+    { label: 'Running',    value: stats?.running     ?? '—' },
+    { label: 'Stopped',    value: stats?.stopped     ?? '—' },
+    { label: 'CPUs alloc', value: stats?.total_cpus  ?? '—' },
+    { label: 'RAM used',   value: stats ? fmt(stats.used_ram)  : '—' },
+    { label: 'Disk used',  value: stats ? fmt(stats.used_disk) : '—' },
   ]
 
   return (

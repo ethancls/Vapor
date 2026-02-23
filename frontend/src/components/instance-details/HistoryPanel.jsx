@@ -27,18 +27,21 @@ function ChartTooltip({ active, payload, label, unit }) {
   )
 }
 
-export default function HistoryPanel({ history = [] }) {
+const EMPTY_HISTORY = []
+
+export default function HistoryPanel({ history = EMPTY_HISTORY }) {
   const [metricKey, setMetricKey] = useState(METRICS[0].key)
   const metric = METRICS.find((item) => item.key === metricKey) || METRICS[0]
   const metricOptions = METRICS.map((item) => ({ value: item.key, label: item.label }))
 
   const chartData = useMemo(() => history.map((point) => ({
-    ts: new Date(point.ts).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    ts: new Date(point.ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
     value: metric.transform(point[metric.key]),
   })), [history, metric])
+  const tickInterval = Math.max(0, Math.ceil(chartData.length / 6) - 1)
 
   return (
-    <div className="card">
+    <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 10, flexWrap: 'wrap' }}>
         <p className="section-title">History</p>
         <CustomSelect
@@ -62,7 +65,14 @@ export default function HistoryPanel({ history = [] }) {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-            <XAxis dataKey="ts" tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+            <XAxis
+              dataKey="ts"
+              tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }}
+              tickLine={false}
+              axisLine={false}
+              interval={tickInterval}
+              minTickGap={24}
+            />
             <YAxis tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} />
             <Tooltip content={<ChartTooltip unit={metric.unit} />} />
             <Area type="monotone" dataKey="value" stroke="#b5f23d" strokeWidth={2} fill="url(#inst-grad)" dot={false} />

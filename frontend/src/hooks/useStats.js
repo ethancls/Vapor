@@ -6,5 +6,6 @@ export function useStats() {
     queryKey: ['stats'],
     queryFn: () => api.getStats(),
     refetchInterval: 10000,
+    retry: 0,
   })
 }

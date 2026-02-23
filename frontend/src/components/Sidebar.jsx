@@ -1,54 +1,111 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Server, Plus, Settings, Sun, Moon, Monitor, ChevronLeft, Camera, Network, Image, Command, ShieldCheck } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { version as APP_VERSION } from '../../package.json'
+import { Boxes, Plus, Sun, Moon, Monitor, ChevronLeft, Files, EthernetPort, CircleFadingArrowUp, Check, LogOut, Settings, Users, History, Layers2, LayoutGrid } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useStats } from '../hooks/useStats'
 import { useTheme } from '../contexts/ThemeContext'
-import { api } from '../api/client'
-import CustomSelect from './CustomSelect'
+import { api, authLogout } from '../api/client'
 
 const NAV = [
-  { to: '/dashboard',    Icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/instances',    Icon: Server,          label: 'Instances', matchPaths: ['/instances', '/instances/new'], matchPrefix: '/instances/' },
-  { to: '/snapshots',    Icon: Camera,          label: 'Snapshots' },
-  { to: '/updates',      Icon: ShieldCheck,     label: 'Updates' },
-  { to: '/networks',     Icon: Network,         label: 'Networks' },
-  { to: '/images',       Icon: Image,           label: 'Images' },
-  { to: '/aliases',      Icon: Command,         label: 'Aliases' },
-  { to: '/settings',     Icon: Settings,        label: 'Settings' },
+  { group: null,        to: '/dashboard', Icon: LayoutGrid, label: 'Dashboard' },
+  { group: 'Compute',   to: '/instances', Icon: Boxes, label: 'Instances', matchPaths: ['/instances', '/instances/new'], matchPrefix: '/instances/' },
+  { group: 'Compute',   to: '/snapshots', Icon: Files, label: 'Snapshots' },
+  { group: 'Compute',   to: '/updates',   Icon: CircleFadingArrowUp, label: 'Updates' },
+  { group: 'Resources', to: '/networks',  Icon: EthernetPort, label: 'Networks' },
+  { group: 'Resources', to: '/images',    Icon: Layers2, label: 'Images' },
+  { group: 'System',    to: '/users',     Icon: Users, label: 'Users' },
+  { group: 'System',    to: '/logs',      Icon: History, label: 'Logs' },
+  { group: 'System',    to: '/settings',  Icon: Settings, label: 'Settings' },
 ]
 
 const THEME_OPTIONS = [
-  { value: 'dark',   label: 'Dark'   },
-  { value: 'light',  label: 'Light'  },
-  { value: 'system', label: 'System' },
+  { value: 'dark', label: 'Dark', Icon: Moon },
+  { value: 'light', label: 'Light', Icon: Sun },
+  { value: 'system', label: 'System', Icon: Monitor },
 ]
+const THEME_ORDER = ['dark', 'light', 'system']
 
-const THEME_ICONS = { dark: Moon, light: Sun, system: Monitor }
-const THEME_CYCLE = { dark: 'light', light: 'system', system: 'dark' }
+function SidebarAvatar({ user, size = 30 }) {
+  const [failed, setFailed] = useState(false)
+  const avatar = user?.avatar_url || ''
 
-export default function Sidebar({ onNewInstance, collapsed, onToggle }) {
-  const { data: stats } = useStats()
+  const fallback = String(user?.name || user?.login || '?').trim().charAt(0).toUpperCase() || '?'
+
+  return (
+    <span style={{
+      width: size,
+      height: size,
+      borderRadius: 999,
+      overflow: 'hidden',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--card-3)',
+      border: '1px solid var(--border)',
+      flexShrink: 0,
+    }}>
+      {avatar && !failed ? (
+        <img
+          src={avatar}
+          alt={user?.login || 'avatar'}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="mono" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', lineHeight: 1 }}>
+          {fallback}
+        </span>
+      )}
+    </span>
+  )
+}
+
+export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }) {
   const { theme, setTheme } = useTheme()
   const location = useLocation()
   const pathname = location.pathname
-  const { data: versionData } = useQuery({
-    queryKey: ['version'],
-    queryFn: () => api.getVersion(),
-    staleTime: Infinity,
+
+  const { data: updatesData } = useQuery({
+    queryKey: ['updates'],
+    queryFn: () => api.getUpdates(),
+    refetchInterval: 120000,
+    staleTime: 60000,
     retry: false,
   })
-  const daemonOk = stats?.daemon_running ?? true
-  const ThemeIcon = THEME_ICONS[theme]
+  const updatesItems    = updatesData?.updates || []
+  const outdatedCount   = updatesItems.filter(u => (u.upgradable || 0) > 0).length
+  const allCheckedAndOk = updatesItems.length > 0
+    && updatesItems.every(u => u.checked)
+    && outdatedCount === 0
+  const { data: meData } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: () => api.getCurrentUser(),
+    staleTime: 60000,
+    retry: false,
+  })
+  const me = meData?.user || null
 
-  const version = (() => {
-    const v = versionData?.version
-    if (!v) return null
-    if (typeof v === 'string') {
-      const m = v.match(/multipass\s+([\d.]+)/i)
-      return m ? m[1] : v.split('\n')[0].trim()
+  const accountName = me?.name || me?.login || 'Account'
+  const accountLogin = me?.login || 'local'
+
+  async function handleSignOut() {
+    try {
+      await authLogout()
+    } finally {
+      onLogout?.()
     }
-    return v?.multipass || v?.multipassd || null
-  })()
+  }
+
+  const activeTheme = useMemo(
+    () => THEME_OPTIONS.find((option) => option.value === theme) || THEME_OPTIONS[0],
+    [theme],
+  )
+
+  function cycleTheme() {
+    const currentIndex = THEME_ORDER.indexOf(theme)
+    const nextTheme = THEME_ORDER[(currentIndex + 1) % THEME_ORDER.length]
+    setTheme(nextTheme)
+  }
 
   return (
     <aside
@@ -59,7 +116,7 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle }) {
         borderRadius: '0 20px 20px 0',
         display: 'flex', flexDirection: 'column',
         height: '100vh', padding: collapsed ? '18px 12px' : '18px 16px',
-        transition: 'padding 0.38s cubic-bezier(0.4,0,0.2,1)',
+        transition: 'padding var(--sidebar-anim-duration) var(--sidebar-anim-ease)',
       }}
     >
       {/* ── Logo row ── */}
@@ -70,10 +127,12 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle }) {
         <div
           className="logo-row"
           onClick={collapsed ? onToggle : undefined}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (collapsed && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onToggle() } }}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             overflow: 'hidden',
-            transition: 'gap 0.38s cubic-bezier(0.4,0,0.2,1)',
             cursor: collapsed ? 'pointer' : 'default',
           }}
         >
@@ -81,19 +140,35 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle }) {
             src="/vapor.png"
             width={40} height={40}
             alt="Vapor"
-            style={{ imageRendering: 'auto', flexShrink: 0, display: 'block' }}
+            style={{
+              imageRendering: 'auto',
+              display: 'block',
+              flex: '0 0 40px',
+              width: 40,
+              height: 40,
+              minWidth: 40,
+              minHeight: 40,
+              maxWidth: 'none',
+              objectFit: 'contain',
+            }}
           />
-          <span className="sidebar-label" style={{
-            fontFamily: 'Syne', fontWeight: 800, fontSize: 22,
-            letterSpacing: '-0.6px', lineHeight: 1,
-            color: 'var(--text-primary)',
-          }}>Vapor</span>
+          <div className="sidebar-label" style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+            <span style={{
+              display: 'block',
+              fontFamily: 'Syne', fontWeight: 800, fontSize: 22,
+              letterSpacing: '-0.6px', lineHeight: 1,
+              color: 'var(--text-primary)',
+            }}>Vapor</span>
+            <span className="mono" style={{ display: 'block', width: '100%', textAlign: 'right', fontSize: 10, color: '#ffffff', lineHeight: 1.5 }}>v{APP_VERSION}</span>
+          </div>
         </div>
 
         {!collapsed && (
           <button
-            onClick={onToggle}
+            type="button"
+            aria-label="Collapse sidebar (⌘B)"
             title="Collapse sidebar (⌘B)"
+            onClick={onToggle}
             className=""
             style={{
               marginLeft: 'auto',
@@ -110,24 +185,72 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle }) {
         )}
       </div>
 
-      {!collapsed && (
-        <p className="section-label" style={{ padding: '0 6px', marginBottom: 8 }}>Navigation</p>
-      )}
-
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {NAV.map(({ to, Icon, label, matchPaths, matchPrefix }) => {
+        {NAV.map(({ group, to, Icon, label, matchPaths, matchPrefix }, idx) => {
           const isActive = (matchPaths && matchPaths.includes(pathname)) || (matchPrefix && pathname.startsWith(matchPrefix)) || pathname === to
+          const prevGroup = idx > 0 ? NAV[idx - 1].group : null
+          const startsGroup = !!group && group !== prevGroup
           return (
-            <NavLink
-              key={to}
-              to={to}
-              state={{ from: pathname }}
-              title={collapsed ? label : undefined}
-              className={() => `nav-item${isActive ? ' active' : ''}`}
-            >
-              <Icon size={16} style={{ flexShrink: 0 }} />
-              <span className="sidebar-label">{label}</span>
-            </NavLink>
+            <div key={to} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {!collapsed && startsGroup && (
+                <p className="section-label" style={{ padding: '8px 10px 2px', margin: 0, opacity: 0.78 }}>
+                  {group}
+                </p>
+              )}
+              {collapsed && startsGroup && (
+                <div
+                  aria-hidden="true"
+                  style={{
+                    height: 18,
+                    padding: '0 8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span style={{ width: '100%', borderTop: '1px dashed var(--border)' }} />
+                </div>
+              )}
+                      <NavLink
+                to={to}
+                state={{ from: pathname }}
+                title={collapsed ? label : undefined}
+                className={() => `nav-item${isActive ? ' active' : ''}`}
+              >
+                {/* Icon — with dot badge when collapsed and updates pending */}
+                <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                  <Icon size={22} />
+                  {to === '/updates' && collapsed && outdatedCount > 0 && (
+                    <span style={{
+                      position: 'absolute', top: -3, right: -4,
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: '#22d3ee',
+                      border: '2px solid var(--card-1)',
+                    }} />
+                  )}
+                </span>
+
+                {/* Label — with count or check badge when expanded */}
+                <span className="sidebar-label" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                  {label}
+                  {to === '/updates' && !collapsed && outdatedCount > 0 && (
+                    <span style={{
+                      marginLeft: 'auto',
+                      flexShrink: 0,
+                      color: '#22d3ee',
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      fontFamily: 'IBM Plex Mono',
+                      lineHeight: 1,
+                    }}>
+                      {outdatedCount}
+                    </span>
+                  )}
+                  {to === '/updates' && !collapsed && allCheckedAndOk && (
+                    <Check size={11} style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--running)' }} />
+                  )}
+                </span>
+              </NavLink>
+            </div>
           )
         })}
       </nav>
@@ -137,17 +260,19 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle }) {
       {/* New instance */}
       {collapsed ? (
         <button
-          onClick={onNewInstance}
+          type="button"
+          aria-label="New Instance"
           title="New Instance"
+          onClick={onNewInstance}
           className=""
           style={{
             background: 'var(--accent)', border: 'none', borderRadius: 10,
-            padding: '10px', cursor: 'pointer',
+            width: '100%',
+            height: 36,
+            cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: 8, transition: 'opacity 0.15s',
+            marginBottom: 8,
           }}
-          onMouseEnter={e => e.currentTarget.style.opacity = '0.82'}
-          onMouseLeave={e => e.currentTarget.style.opacity = '1'}
         >
           <Plus size={16} color="#0a0a0a" />
         </button>
@@ -161,50 +286,50 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle }) {
         </button>
       )}
 
-      {/* Theme — CustomSelect expanded, icon-cycle collapsed */}
+      {/* Theme */}
       <div style={{ marginBottom: 8 }}>
-        {collapsed ? (
-          <button
-            onClick={() => setTheme(THEME_CYCLE[theme])}
-            title={`Theme: ${theme}`}
-            className=""
-            style={{
-              width: '100%', background: 'var(--card-2)', border: '1px solid var(--border)',
-              borderRadius: 'var(--r-sm)', padding: '9px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-secondary)', transition: 'color 0.15s, border-color 0.15s, background 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color='var(--text-primary)'; e.currentTarget.style.borderColor='var(--border-hover)'; e.currentTarget.style.background='var(--card-3)' }}
-            onMouseLeave={e => { e.currentTarget.style.color='var(--text-secondary)'; e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.background='var(--card-2)' }}
-          >
-            <ThemeIcon size={14} />
-          </button>
-        ) : (
-          <CustomSelect
-            value={theme}
-            onChange={setTheme}
-            options={THEME_OPTIONS}
-            dropUp
-          />
-        )}
+        <button
+          type="button"
+          aria-label="Switch theme"
+          title={`Theme: ${activeTheme.label}`}
+          className={`sidebar-theme-cycle${collapsed ? ' is-collapsed' : ''}`}
+          onClick={cycleTheme}
+        >
+          <span className="sidebar-theme-cycle-icon">
+            <activeTheme.Icon size={16} />
+          </span>
+          {!collapsed && (
+            <span className="mono sidebar-theme-cycle-label">
+              {activeTheme.label}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* Daemon dot + version */}
-      <div
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '4px 0', overflow: 'hidden',
-          justifyContent: 'center',
-        }}
-        title={`multipass ${daemonOk ? 'running' : 'offline'}${version ? ` v${version}` : ''}`}
-      >
-        <div className={`daemon-dot ${daemonOk ? 'running' : 'offline'}`} style={{ flexShrink: 0 }} />
-        {version && (
-          <span className="mono sidebar-label" style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1, whiteSpace: 'nowrap' }}>
-            v{version}
-          </span>
-        )}
+      {/* Account */}
+      <div style={{ marginBottom: 8 }}>
+        <button
+          type="button"
+          aria-label="Sign out"
+          title="Sign out"
+          onClick={handleSignOut}
+          className={`sidebar-account-signout${collapsed ? ' is-collapsed' : ''}`}
+        >
+          <SidebarAvatar key={me?.avatar_url || ''} user={me} size={28} />
+          {!collapsed && (
+            <>
+              <div className="sidebar-account-meta">
+                <p className="sidebar-account-name">{accountName}</p>
+                <p className="mono sidebar-account-login">
+                  @{accountLogin}
+                </p>
+              </div>
+              <LogOut size={17} />
+            </>
+          )}
+        </button>
       </div>
+
     </aside>
   )
 }

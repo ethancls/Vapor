@@ -26,11 +26,12 @@ export default function Modal({ title, size = 'md', onClose, footer, children })
     return () => { document.body.style.overflow = '' }
   }, [])
 
-  const widths = { sm: 400, md: 480, lg: 600, xl: 760 }
+  const widths = { sm: 480, md: 580, lg: 700, xl: 880 }
 
   return (
     <div
       ref={overlayRef}
+      role="presentation"
       onClick={e => { if (e.target === overlayRef.current) onClose() }}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
@@ -88,7 +89,7 @@ export default function Modal({ title, size = 'md', onClose, footer, children })
         <div style={{ height: 1, background: 'var(--border)', margin: '18px 0 0' }} />
 
         {/* Body */}
-        <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+        <div style={{ padding: '20px 24px', overflowY: 'auto', overflowX: 'visible', flex: 1, minWidth: 0 }}>
           {children}
         </div>
 

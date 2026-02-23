@@ -7,8 +7,11 @@ export function useInstances() {
   const [wsInstances, setWsInstances] = useState(null)
   const wsRef = useRef(null)
   const reconnectRef = useRef(null)
+  const connectDelayRef = useRef(null)
+  const activeRef = useRef(false)
 
   const connect = useCallback(() => {
+    if (!activeRef.current) return
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const ws = new WebSocket(`${protocol}://${window.location.host}/ws/instances`)
     wsRef.current = ws
@@ -24,17 +27,37 @@ export function useInstances() {
     }
 
     ws.onclose = () => {
-      reconnectRef.current = setTimeout(connect, 3000)
+      if (!activeRef.current) return
+      reconnectRef.current = setTimeout(() => {
+        connect()
+      }, 3000)
     }
 
     ws.onerror = () => ws.close()
   }, [queryClient])
 
   useEffect(() => {
-    connect()
+    activeRef.current = true
+    // Delay initial connect so React StrictMode mount/unmount cycle in dev
+    // does not create and immediately close a websocket before handshake.
+    connectDelayRef.current = setTimeout(() => {
+      connect()
+    }, 0)
+
     return () => {
+      activeRef.current = false
+      clearTimeout(connectDelayRef.current)
       clearTimeout(reconnectRef.current)
-      wsRef.current?.close()
+      if (wsRef.current) {
+        wsRef.current.onopen = null
+        wsRef.current.onmessage = null
+        wsRef.current.onerror = null
+        wsRef.current.onclose = null
+        if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+          wsRef.current.close(1000, 'cleanup')
+        }
+        wsRef.current = null
+      }
     }
   }, [connect])
 

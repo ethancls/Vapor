@@ -6,11 +6,12 @@ import CustomSelect from './CustomSelect'
 
 const METRICS = [
   { key: 'ram_used', label: 'RAM Used', unit: 'MB', transform: v => v ? Number((v / (1024 ** 2)).toFixed(1)) : 0 },
-  { key: 'cpu', label: 'vCPUs', unit: 'vCPU', transform: v => Number(v || 0) },
   { key: 'disk_used', label: 'Disk Used', unit: 'GB', transform: v => v ? Number((v / (1024 ** 3)).toFixed(2)) : 0 },
+  { key: 'cpu', label: 'vCPUs', unit: 'vCPU', transform: v => Number(v || 0) },
 ]
 
 const ALL_VALUE = '__all__'
+const EMPTY_INSTANCES = []
 const SERIES_COLORS = ['#b5f23d', '#60a5fa', '#f472b6', '#fb923c', '#a78bfa', '#34d399', '#f87171', '#22d3ee', '#facc15', '#c084fc']
 
 function SingleTooltip({ active, payload, label, unit }) {
@@ -61,7 +62,7 @@ function MultiTooltip({ active, payload, label, unit }) {
   )
 }
 
-export default function ResourceChart({ instances = [] }) {
+export default function ResourceChart({ instances = EMPTY_INSTANCES }) {
   const [selectedVm, setSelectedVm] = useState(ALL_VALUE)
   const [metricKey, setMetricKey] = useState(METRICS[0].key)
   const metric = METRICS.find(m => m.key === metricKey) ?? METRICS[0]
@@ -85,7 +86,7 @@ export default function ResourceChart({ instances = [] }) {
 
   const raw = singleData?.history ?? []
   const chartData = raw.map((p, i) => ({
-    ts: new Date(p.ts).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    ts: new Date(p.ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
     value: metric.transform(p[metric.key]),
     prev: i > 0 ? metric.transform(raw[i - 1][metric.key]) : null,
   }))
@@ -101,7 +102,7 @@ export default function ResourceChart({ instances = [] }) {
         if (!byTs.has(rawTs)) {
           byTs.set(rawTs, {
             tsRaw: rawTs,
-            ts: new Date(rawTs).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            ts: new Date(rawTs).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
           })
         }
         byTs.get(rawTs)[inst.name] = metric.transform(point[metric.key])
@@ -110,6 +111,9 @@ export default function ResourceChart({ instances = [] }) {
 
     return Array.from(byTs.values()).sort((a, b) => new Date(a.tsRaw).getTime() - new Date(b.tsRaw).getTime())
   }, [instances, isAll, metric, metric.key, multiQueries])
+
+  const singleTickInterval = Math.max(0, Math.ceil(chartData.length / 6) - 1)
+  const allTickInterval = Math.max(0, Math.ceil(allChartData.length / 6) - 1)
 
   const vmOptions = [{ value: ALL_VALUE, label: 'All instances' }, ...instances.map(i => ({ value: i.name, label: i.name }))]
   const metricOptions = METRICS.map(m => ({ value: m.key, label: m.label }))
@@ -154,7 +158,14 @@ export default function ResourceChart({ instances = [] }) {
                 ))}
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-              <XAxis dataKey="ts" tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <XAxis
+                dataKey="ts"
+                tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }}
+                tickLine={false}
+                axisLine={false}
+                interval={allTickInterval}
+                minTickGap={24}
+              />
               <YAxis tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} />
               <Tooltip content={<MultiTooltip unit={metric.unit} />} />
               {instances.map((inst, i) => (
@@ -191,7 +202,14 @@ export default function ResourceChart({ instances = [] }) {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-            <XAxis dataKey="ts" tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+            <XAxis
+              dataKey="ts"
+              tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }}
+              tickLine={false}
+              axisLine={false}
+              interval={singleTickInterval}
+              minTickGap={24}
+            />
             <YAxis tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} />
             <Tooltip content={<SingleTooltip unit={metric.unit} />} />
             <Area type="monotone" dataKey="value" stroke="#b5f23d" strokeWidth={2} fill="url(#grad)" dot={false} activeDot={{ r: 4, fill: '#b5f23d' }} />

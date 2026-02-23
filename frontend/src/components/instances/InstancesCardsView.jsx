@@ -1,7 +1,10 @@
 import Checkbox from './InstancesCheckbox'
 import InstanceCard from '../InstanceCard'
 
-export default function InstancesCardsView({ instances = [], selectedNames = new Set(), onToggleSelect }) {
+const EMPTY_ARRAY = []
+const EMPTY_SET = new Set()
+
+export default function InstancesCardsView({ instances = EMPTY_ARRAY, selectedNames = EMPTY_SET, onToggleSelect }) {
   if (instances.length === 0) {
     return (
       <div style={{
@@ -14,7 +17,7 @@ export default function InstancesCardsView({ instances = [], selectedNames = new
   }
 
   return (
-    <div className="instances-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 12 }}>
+    <div className="instances-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: 12 }}>
       {instances.map((inst) => (
         <div key={inst.name} style={{ position: 'relative' }}>
           <div

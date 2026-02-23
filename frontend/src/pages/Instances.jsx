@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { sileo } from 'sileo'
 import { useInstances } from '../hooks/useInstances'
 import { api } from '../api/client'
@@ -9,14 +9,14 @@ import ConfirmModal from '../components/ConfirmModal'
 import InstancesControls from '../components/instances/InstancesControls'
 import InstancesBatchActions from '../components/instances/InstancesBatchActions'
 import InstancesCardsView from '../components/instances/InstancesCardsView'
-import { filterInstances } from '../components/instances/instancesUtils'
+import { filterInstances, randomSnapshotName } from '../components/instances/instancesUtils'
 
-const COLS = ['Name', 'State', 'IPv4', 'Image', 'CPUs', 'Memory', 'Disk', 'Actions']
+const COLS = ['Name', 'State', 'IPv4', 'Image', 'CPUs', 'RAM', 'Disk', 'Usage', 'Actions']
 
 function SkeletonTable() {
   return (
     <div className="instances-table-shell" style={{ background: 'var(--card-1)', borderRadius: 'var(--r-card)', border: '1px solid var(--border)', overflowX: 'auto' }}>
-      <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
+      <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border)' }}>
             <th style={{ padding: '12px 10px 12px 14px' }}><div className="skeleton" style={{ width: 18, height: 18, borderRadius: 5 }} /></th>
@@ -28,8 +28,8 @@ function SkeletonTable() {
           </tr>
         </thead>
         <tbody>
-          {[...Array(5)].map((_, i) => (
-            <tr key={i} style={{ borderBottom: i < 4 ? '1px solid var(--border)' : 'none' }}>
+          {['s0','s1','s2','s3','s4'].map((k, idx) => (
+            <tr key={k} style={{ borderBottom: idx < 4 ? '1px solid var(--border)' : 'none' }}>
               <td style={{ padding: '14px 10px 14px 14px' }}><div className="skeleton" style={{ height: 18, width: 18, borderRadius: 5 }} /></td>
               <td style={{ padding: '14px 18px' }}><div className="skeleton" style={{ height: 13, width: 120, borderRadius: 5 }} /></td>
               <td style={{ padding: '14px 18px' }}><div className="skeleton" style={{ height: 20, width: 68, borderRadius: 100 }} /></td>
@@ -38,6 +38,7 @@ function SkeletonTable() {
               <td style={{ padding: '14px 18px' }}><div className="skeleton" style={{ height: 12, width: 24, borderRadius: 5 }} /></td>
               <td style={{ padding: '14px 18px' }}><div className="skeleton" style={{ height: 12, width: 60, borderRadius: 5 }} /></td>
               <td style={{ padding: '14px 18px' }}><div className="skeleton" style={{ height: 12, width: 60, borderRadius: 5 }} /></td>
+              <td style={{ padding: '14px 18px' }}><div className="skeleton" style={{ height: 12, width: 100, borderRadius: 5 }} /></td>
               <td style={{ padding: '14px 18px' }}><div style={{ display: 'flex', gap: 5 }}>{[...Array(3)].map((_, j) => <div key={j} className="skeleton" style={{ width: 30, height: 30, borderRadius: 8 }} />)}</div></td>
             </tr>
           ))}
@@ -48,15 +49,13 @@ function SkeletonTable() {
 }
 
 export default function Instances({ onNewInstance }) {
-  const { instances, isLoading, refetch } = useInstances()
+  const { instances, isLoading } = useInstances()
   const qc = useQueryClient()
 
   const [stateFilter, setStateFilter] = useState('All')
   const [imageFilter, setImageFilter] = useState('All')
   const [query, setQuery] = useState('')
-  const [viewMode, setViewMode] = useState(() => (
-    typeof window !== 'undefined' && window.innerWidth <= 900 ? 'cards' : 'table'
-  ))
+  const [viewMode, setViewMode] = useState('table')
   const [selectedNames, setSelectedNames] = useState(new Set())
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
 
@@ -76,36 +75,29 @@ export default function Instances({ onNewInstance }) {
     () => filterInstances(instances, { stateFilter, imageFilter, query }),
     [instances, stateFilter, imageFilter, query],
   )
-  const usedCpus = useMemo(
-    () => instances.filter((i) => i.state === 'Running').reduce((sum, i) => sum + Number(i.cpus || 0), 0),
-    [instances],
-  )
-  const totalCpus = useMemo(() => instances.reduce((sum, i) => sum + Number(i.cpus || 0), 0), [instances])
-  const usedRam = useMemo(() => instances.reduce((sum, i) => sum + Number(i.memory?.used || 0), 0), [instances])
-  const totalRam = useMemo(() => instances.reduce((sum, i) => sum + Number(i.memory?.total || 0), 0), [instances])
-  const usedDisk = useMemo(() => instances.reduce((sum, i) => sum + Number(i.disk?.used || 0), 0), [instances])
-  const totalDisk = useMemo(() => instances.reduce((sum, i) => sum + Number(i.disk?.total || 0), 0), [instances])
-
-  function fmtRatioBytes(used, total) {
-    if (!total) return { used: '—', total: '—', unit: '' }
-    if (total >= 1024 ** 3) {
+  const selectedInstances = filteredInstances.filter((i) => selectedNames.has(i.name))
+  const bulkActionsEnabled = useMemo(() => {
+    if (!selectedInstances.length) {
       return {
-        used: (used / (1024 ** 3)).toFixed(1),
-        total: (total / (1024 ** 3)).toFixed(1),
-        unit: 'GB',
+        start: false,
+        stop: false,
+        restart: false,
+        suspend: false,
+        snapshot: false,
+        delete: false,
       }
     }
+    const every = (predicate) => selectedInstances.every(predicate)
     return {
-      used: String(Math.round(used / (1024 ** 2))),
-      total: String(Math.round(total / (1024 ** 2))),
-      unit: 'MB',
+      // Intersection of available actions for all selected instances
+      start: every((i) => i.state === 'Stopped' || i.state === 'Suspended'),
+      stop: every((i) => i.state === 'Running'),
+      restart: every((i) => i.state === 'Running'),
+      suspend: every((i) => i.state === 'Running'),
+      snapshot: every((i) => i.state === 'Stopped'),
+      delete: true,
     }
-  }
-
-  const ramRatio = fmtRatioBytes(usedRam, totalRam)
-  const diskRatio = fmtRatioBytes(usedDisk, totalDisk)
-
-  const selectedInstances = filteredInstances.filter((i) => selectedNames.has(i.name))
+  }, [selectedInstances])
 
   function toggleSelect(name) {
     setSelectedNames((prev) => {
@@ -159,40 +151,18 @@ export default function Instances({ onNewInstance }) {
     }
   }
 
-  const hasSelection = selectedInstances.length > 0
-
   return (
     <div className="page">
-      <div className="instances-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, gap: 16, flexWrap: 'wrap' }}>
+      <div className="instances-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h1 className="page-title">Instances</h1>
-          <p className="mono" style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 7 }}>
-            {isLoading ? <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 12 }} /> : `${instances.length} instance${instances.length !== 1 ? 's' : ''} total`}
-          </p>
         </div>
         <div className="instances-header-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button className="btn-ghost" onClick={() => refetch()}>
-            <RefreshCw size={13} /> Refresh
-          </button>
           <button className="btn-accent" onClick={onNewInstance}>
             <Plus size={13} /> New Instance
           </button>
         </div>
       </div>
-
-      {!isLoading && (
-        <p className="mono instances-totals" style={{ marginBottom: 12, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-          <span>vCPUs </span>
-          <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{usedCpus}</span>
-          <span>/{totalCpus}</span>
-          <span> · RAM </span>
-          <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{ramRatio.used}</span>
-          <span>/{ramRatio.total} {ramRatio.unit}</span>
-          <span> · Disk </span>
-          <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{diskRatio.used}</span>
-          <span>/{diskRatio.total} {diskRatio.unit}</span>
-        </p>
-      )}
 
       {!isLoading && (
         <InstancesControls
@@ -216,9 +186,10 @@ export default function Instances({ onNewInstance }) {
           onStop={() => runBatch((name) => api.stopInstance(name), `Stopped ${selectedInstances.length} instance(s)`)}
           onRestart={() => runBatch((name) => api.restartInstance(name), `Restarted ${selectedInstances.length} instance(s)`)}
           onSuspend={() => runBatch((name) => api.suspendInstance(name), `Suspended ${selectedInstances.length} instance(s)`)}
-          onSnapshot={() => runBatch((name) => api.createSnapshot(name), `Created snapshots for ${selectedInstances.length} instance(s)`)}
+          onSnapshot={() => runBatch((name) => api.createSnapshot(name, randomSnapshotName(name)), `Created snapshots for ${selectedInstances.length} instance(s)`)}
           onDelete={() => setConfirmBulkDelete(true)}
           onClear={clearSelection}
+          actionsEnabled={bulkActionsEnabled}
         />
       )}
 
@@ -249,12 +220,6 @@ export default function Instances({ onNewInstance }) {
           onClose={() => setConfirmBulkDelete(false)}
           onConfirm={() => runBatch((name) => api.deleteInstance(name), `Deleted ${selectedInstances.length} instance(s)`)}
         />
-      )}
-
-      {!isLoading && hasSelection && viewMode === 'cards' && (
-        <p className="mono" style={{ marginTop: 10, fontSize: 11.5, color: 'var(--text-secondary)' }}>
-          Tip: selection persists between views. Switch to table for dense bulk operations.
-        </p>
       )}
     </div>
   )

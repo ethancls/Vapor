@@ -1,15 +1,50 @@
 const BASE = '/api'
 
+let _onUnauthorized = null
+export function setOnUnauthorized(fn) { _onUnauthorized = fn }
+
 async function request(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } }
   if (body !== undefined) opts.body = JSON.stringify(body)
   const res = await fetch(`${BASE}${path}`, opts)
+  if (res.status === 401) {
+    if (_onUnauthorized) _onUnauthorized()
+    throw new Error('Authentication required')
+  }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     const detail = data?.detail || data?.error || `${method} ${path} → ${res.status}`
     throw new Error(detail)
   }
   return data
+}
+
+export async function authLogin(username, password) {
+  const res = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Login failed')
+  return data
+}
+
+export async function authOIDCConfig() {
+  const res = await fetch('/auth/oidc/config')
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Failed to load OIDC config')
+  return data
+}
+
+export async function authLogout() {
+  await fetch('/auth/logout', { method: 'POST' })
+}
+
+export async function authMe() {
+  const res = await fetch('/auth/me')
+  if (!res.ok) return null
+  return res.json().catch(() => null)
 }
 
 function instanceAction(name, action, payload = {}) {
@@ -44,6 +79,7 @@ export const api = {
   getNetworks: () => request('GET', '/networks'),
   getImages: (q = '') => request('GET', `/images${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   getSettings: () => request('GET', '/settings'),
+  getSetting: (key) => request('GET', `/settings/${encodeURIComponent(key)}`),
   setSetting: (key, value) => request('PUT', `/settings/${encodeURIComponent(key)}`, { value }),
   getAliases: () => request('GET', '/aliases'),
   createAlias: (definition, name = '', noMapWorkingDirectory = false) => request('POST', '/aliases', {
@@ -54,9 +90,25 @@ export const api = {
   deleteAlias: (name) => request('DELETE', `/aliases/${encodeURIComponent(name)}`),
   preferAlias: (name) => request('POST', '/aliases/prefer', { name }),
   execInstance: (name, command, opts = {}) => request('POST', `/instances/${name}/exec`, { command, ...opts }),
+  getHealth: () => request('GET', '/health'),
   getVersion: () => request('GET', '/system/version'),
   getHostInfo: () => request('GET', '/system/host'),
+  fsBrowse: (path) => request('GET', `/fs/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  fsCheckURL: (url) => request('GET', `/fs/check-url?url=${encodeURIComponent(url)}`),
   getTemplates: () => request('GET', '/templates'),
   createTemplate: (body) => request('POST', '/templates', body),
   deleteTemplate: (id) => request('DELETE', `/templates/${encodeURIComponent(id)}`),
+  getUsers: () => request('GET', '/users'),
+  getCurrentUser: () => request('GET', '/users/me'),
+  createUser: (body) => request('POST', '/users', body),
+  updateUser: (id, body) => request('PUT', `/users/${encodeURIComponent(id)}`, body),
+  deleteUser: (id) => request('DELETE', `/users/${encodeURIComponent(id)}`),
+  setUserPassword: (id, password) => request('PUT', `/users/${encodeURIComponent(id)}/password`, { password }),
+  updateCurrentUser: (body) => request('PUT', '/users/me', body),
+  changeCurrentPassword: (currentPassword, newPassword) => request('PUT', '/users/me/password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  }),
+  getAuthSettings: () => request('GET', '/app/auth'),
+  updateAuthSettings: (body) => request('PUT', '/app/auth', body),
 }

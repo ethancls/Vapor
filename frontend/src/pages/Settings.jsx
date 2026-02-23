@@ -1,95 +1,516 @@
-import { Sun, Moon, Monitor, Check } from 'lucide-react'
-import { useTheme } from '../contexts/ThemeContext'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { api } from '../api/client'
+import CustomSelect from '../components/CustomSelect'
+import IOSToggle from '../components/IOSToggle'
+import DetailsTabs from '../components/instance-details/DetailsTabs'
+import { sileo } from 'sileo'
 
-const THEMES = [
-  { value: 'dark',   label: 'Dark',   Icon: Moon,    desc: 'Dark background, easy on the eyes' },
-  { value: 'light',  label: 'Light',  Icon: Sun,     desc: 'Light background, bright environment' },
-  { value: 'system', label: 'System', Icon: Monitor, desc: 'Follows your OS preference' },
+function fmtRam(mb) {
+  if (!mb) return '—'
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`
+}
+
+function parseVersion(v) {
+  if (!v) return '—'
+  if (typeof v === 'string') return v.trim()
+  if (typeof v === 'object') {
+    const mp = v.multipass || v.multipassd || Object.values(v)[0]
+    return typeof mp === 'string' ? mp.trim() : JSON.stringify(v)
+  }
+  return String(v)
+}
+
+const SETTINGS_TABS = [
+  { value: 'system',     label: 'System' },
+  { value: 'multipass',  label: 'Multipass' },
+  { value: 'auth',       label: 'Auth' },
+  { value: 'shortcuts',  label: 'Shortcuts' },
 ]
+
+const REDACTED_DISPLAY = '••••••••••••'
+
+function SectionShell({ children }) {
+  return (
+    <section style={{ paddingTop: 2 }}>
+      {children}
+    </section>
+  )
+}
+
+function SystemSection() {
+  const versionQuery = useQuery({ queryKey: ['system-version'], queryFn: () => api.getVersion(), staleTime: 60000 })
+  const hostQuery = useQuery({ queryKey: ['system-host'], queryFn: () => api.getHostInfo(), staleTime: 60000 })
+  const healthQuery = useQuery({ queryKey: ['health'], queryFn: () => api.getHealth(), refetchInterval: 15000 })
+
+  const mpVersion = parseVersion(versionQuery.data?.version)
+  const host = hostQuery.data || {}
+  const health = healthQuery.data || {}
+  const loading = versionQuery.isLoading || hostQuery.isLoading
+
+  const rows = [
+    { label: 'Multipass version', value: mpVersion },
+    { label: 'Host vCPUs', value: host.cpus ? `${host.cpus} cores` : '—' },
+    { label: 'Host memory', value: fmtRam(host.memory_mb) },
+    { label: 'Daemon', value: health.daemon_running ? 'Running' : 'Offline', color: health.daemon_running ? 'var(--running)' : 'var(--stopped)' },
+    { label: 'WS clients', value: health.ws_clients != null ? String(health.ws_clients) : '—' },
+  ]
+
+  return (
+    <SectionShell>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {rows.map(({ label, value, color }, idx) => (
+          <div
+            key={label}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(180px, 240px) 1fr',
+              alignItems: 'center',
+              gap: 12,
+              padding: '12px 2px',
+              borderBottom: idx < rows.length - 1 ? '1px solid var(--border)' : 'none',
+            }}
+          >
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
+            {loading
+              ? <span className="skeleton" style={{ width: 90, height: 12, borderRadius: 4 }} />
+              : <span className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: color || 'var(--text-primary)' }}>{value}</span>}
+          </div>
+        ))}
+      </div>
+    </SectionShell>
+  )
+}
+
+function MultipassSection() {
+  const qc = useQueryClient()
+
+  const { data: bridgedData, isLoading: bridgedLoading } = useQuery({
+    queryKey: ['setting', 'local.bridged-network'],
+    queryFn: () => api.getSetting('local.bridged-network'),
+    staleTime: 0,
+    retry: false,
+  })
+  const { data: networksData, isLoading: networksLoading } = useQuery({
+    queryKey: ['networks'],
+    queryFn: () => api.getNetworks(),
+    staleTime: 60000,
+  })
+
+  const currentValue = bridgedData?.value?.trim() ?? ''
+  const networks = networksData?.networks ?? []
+
+  const [selected, setSelected] = useState(currentValue)
+  const [prevCurrentValue, setPrevCurrentValue] = useState(currentValue)
+  if (prevCurrentValue !== currentValue) {
+    setPrevCurrentValue(currentValue)
+    setSelected(currentValue)
+  }
+
+  const dirty = selected !== currentValue
+  const loading = bridgedLoading || networksLoading
+
+  const save = useMutation({
+    mutationFn: () => api.setSetting('local.bridged-network', selected),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['setting', 'local.bridged-network'] })
+      sileo.success({ title: 'Bridged network updated', duration: 2500 })
+    },
+    onError: (e) => sileo.error({ title: e.message }),
+  })
+
+  const networkOptions = networks.map((n) => ({
+    value: n.name,
+    label: n.name,
+    description: n.address || '—',
+  }))
+
+  return (
+    <SectionShell>
+      <label className="input-label" htmlFor="bridged-network">Bridged network interface</label>
+      <p style={{ marginTop: 6, marginBottom: 12, maxWidth: 760, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+        Select the interface connected to your local LAN so your router can assign the VM its own local IP address,
+        allowing direct access from other devices on the same network.
+      </p>
+      {loading ? (
+        <div className="skeleton" style={{ height: 37, borderRadius: 10, marginBottom: 12, maxWidth: 380 }} />
+      ) : (
+        <div style={{ marginBottom: 14, maxWidth: 420 }}>
+          <CustomSelect
+            id="bridged-network"
+            value={selected}
+            onChange={setSelected}
+            options={networkOptions}
+            searchable
+            placeholder="Select an interface…"
+            controlHeight={37}
+          />
+        </div>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', maxWidth: 420 }}>
+        <button
+          className="btn-accent"
+          onClick={() => save.mutate()}
+          disabled={loading || !dirty || !selected || save.isPending}
+        >
+          {save.isPending ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </SectionShell>
+  )
+}
+
+function AuthSection({ currentRole }) {
+  const qc = useQueryClient()
+  const canRead = currentRole === 'administrator' || currentRole === 'owner'
+  const canWrite = currentRole === 'owner'
+
+  const authQuery = useQuery({
+    queryKey: ['auth-settings'],
+    queryFn: () => api.getAuthSettings(),
+    enabled: canRead,
+    retry: false,
+  })
+
+  const [form, setForm] = useState({
+    local_password_enabled: true,
+    enabled: false,
+    issuer: '',
+    client_id: '',
+    client_secret: '',
+    redirect_url: '',
+    scopes: 'openid profile email',
+    claim_login: 'preferred_username',
+    claim_name: 'name',
+    claim_avatar: 'picture',
+    claim_groups: 'groups',
+    admin_groups: '',
+  })
+
+  useEffect(() => {
+    const oidc = authQuery.data?.oidc
+    if (!oidc) return
+    setForm((f) => ({
+      ...f,
+      local_password_enabled: authQuery.data?.local?.password_enabled ?? true,
+      enabled: Boolean(oidc.enabled),
+      issuer: oidc.issuer || '',
+      client_id: oidc.client_id || '',
+      client_secret: oidc.has_client_secret ? REDACTED_DISPLAY : '',
+      redirect_url: oidc.redirect_url || '',
+      scopes: oidc.scopes || 'openid profile email',
+      claim_login: oidc.claim_login || 'preferred_username',
+      claim_name: oidc.claim_name || 'name',
+      claim_avatar: oidc.claim_avatar || 'picture',
+      claim_groups: oidc.claim_groups || 'groups',
+      admin_groups: oidc.admin_groups || '',
+    }))
+  }, [authQuery.data])
+
+  const save = useMutation({
+    mutationFn: () => {
+      const oidc = {
+        enabled: Boolean(form.enabled),
+        issuer: form.issuer,
+        client_id: form.client_id,
+        redirect_url: form.redirect_url,
+        scopes: form.scopes,
+        claim_login: form.claim_login,
+        claim_name: form.claim_name,
+        claim_avatar: form.claim_avatar,
+        claim_groups: form.claim_groups,
+        admin_groups: form.admin_groups,
+      }
+      if (form.client_secret && form.client_secret !== REDACTED_DISPLAY) {
+        oidc.client_secret = form.client_secret
+      }
+      return api.updateAuthSettings({
+        local: { password_enabled: Boolean(form.local_password_enabled) },
+        oidc,
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['auth-settings'] })
+      sileo.success({ title: 'Auth settings updated', duration: 2500 })
+    },
+    onError: (e) => sileo.error({ title: e.message }),
+  })
+
+  if (!canRead) {
+    return (
+      <SectionShell>
+        <p className="mono" style={{ marginTop: 8, color: 'var(--text-secondary)', fontSize: 12.5 }}>
+          Administrator role required to view authentication settings.
+        </p>
+      </SectionShell>
+    )
+  }
+
+  return (
+    <SectionShell>
+      {authQuery.isLoading ? (
+        <div className="skeleton" style={{ height: 180, borderRadius: 12, maxWidth: 760 }} />
+      ) : authQuery.isError ? (
+        <p className="mono" style={{ marginTop: 8, color: 'var(--stopped)', fontSize: 12.5 }}>
+          {authQuery.error?.message || 'Failed to load auth settings'}
+        </p>
+      ) : (
+        <div style={{ display: 'grid', gap: 12, maxWidth: 760 }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '8px 0',
+          }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)' }}>Enable password login</p>
+            </div>
+            <IOSToggle
+              checked={form.local_password_enabled}
+              disabled={!canWrite}
+              onChange={(next) => setForm((f) => ({ ...f, local_password_enabled: next }))}
+            />
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '8px 0',
+          }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)' }}>Enable OIDC login</p>
+            </div>
+            <IOSToggle
+              checked={form.enabled}
+              disabled={!canWrite}
+              onChange={(next) => setForm((f) => ({ ...f, enabled: next }))}
+            />
+          </div>
+
+          <div>
+            <label className="input-label" htmlFor="auth-issuer">Issuer URL</label>
+            <input
+              id="auth-issuer"
+              className="input"
+              value={form.issuer}
+              onChange={(e) => setForm((f) => ({ ...f, issuer: e.target.value }))}
+              placeholder="https://id.example.com"
+              disabled={!canWrite}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label className="input-label" htmlFor="auth-client-id">Client ID</label>
+              <input
+                id="auth-client-id"
+                className="input"
+                value={form.client_id}
+                onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}
+                disabled={!canWrite}
+              />
+            </div>
+            <div>
+              <label className="input-label" htmlFor="auth-client-secret">Client Secret</label>
+              <input
+                id="auth-client-secret"
+                className="input"
+                type="password"
+                value={form.client_secret}
+                onFocus={() => {
+                  if (!canWrite) return
+                  setForm((f) => (
+                    f.client_secret === REDACTED_DISPLAY
+                      ? { ...f, client_secret: '' }
+                      : f
+                  ))
+                }}
+                onChange={(e) => setForm((f) => ({ ...f, client_secret: e.target.value }))}
+                disabled={!canWrite}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="input-label" htmlFor="auth-redirect-url">Redirect URL (optional)</label>
+            <input
+              id="auth-redirect-url"
+              className="input"
+              value={form.redirect_url}
+              onChange={(e) => setForm((f) => ({ ...f, redirect_url: e.target.value }))}
+              placeholder="vapor.example.com"
+              disabled={!canWrite}
+            />
+          </div>
+
+          <div>
+            <label className="input-label" htmlFor="auth-scopes">Scopes</label>
+            <input
+              id="auth-scopes"
+              className="input"
+              value={form.scopes}
+              onChange={(e) => setForm((f) => ({ ...f, scopes: e.target.value }))}
+              disabled={!canWrite}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <div>
+              <label className="input-label" htmlFor="auth-claim-login">Login claim</label>
+              <input
+                id="auth-claim-login"
+                className="input"
+                value={form.claim_login}
+                onChange={(e) => setForm((f) => ({ ...f, claim_login: e.target.value }))}
+                disabled={!canWrite}
+              />
+            </div>
+            <div>
+              <label className="input-label" htmlFor="auth-claim-name">Name claim</label>
+              <input
+                id="auth-claim-name"
+                className="input"
+                value={form.claim_name}
+                onChange={(e) => setForm((f) => ({ ...f, claim_name: e.target.value }))}
+                disabled={!canWrite}
+              />
+            </div>
+            <div>
+              <label className="input-label" htmlFor="auth-claim-avatar">Avatar claim</label>
+              <input
+                id="auth-claim-avatar"
+                className="input"
+                value={form.claim_avatar}
+                onChange={(e) => setForm((f) => ({ ...f, claim_avatar: e.target.value }))}
+                disabled={!canWrite}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label className="input-label" htmlFor="auth-claim-groups">Groups claim</label>
+              <input
+                id="auth-claim-groups"
+                className="input"
+                value={form.claim_groups}
+                onChange={(e) => setForm((f) => ({ ...f, claim_groups: e.target.value }))}
+                disabled={!canWrite}
+              />
+            </div>
+            <div>
+              <label className="input-label" htmlFor="auth-admin-groups">Admin groups</label>
+              <input
+                id="auth-admin-groups"
+                className="input"
+                value={form.admin_groups}
+                onChange={(e) => setForm((f) => ({ ...f, admin_groups: e.target.value }))}
+                placeholder="admins"
+                disabled={!canWrite}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="btn-accent" onClick={() => save.mutate()} disabled={!canWrite || save.isPending}>
+              {save.isPending ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+          {!canWrite && (
+            <p className="mono" style={{ marginTop: -4, marginBottom: 0, color: 'var(--text-secondary)', fontSize: 12 }}>
+              Owner role required to change authentication settings.
+            </p>
+          )}
+        </div>
+      )}
+    </SectionShell>
+  )
+}
 
 const SHORTCUTS = [
-  { keys: ['⌘', 'K'], label: 'Open search' },
+  { keys: ['⌘', 'K'], label: 'Open search in Dashboard' },
+  { keys: ['⌘', 'I'], label: 'Go to Instances' },
+  { keys: ['⌘', 'S'], label: 'Go to Snapshots' },
+  { keys: ['⌘', 'U'], label: 'Go to Updates'  },
   { keys: ['⌘', 'B'], label: 'Toggle sidebar' },
-  { keys: ['⌘', 'N'], label: 'New instance' },
-  { keys: ['⌘', 'R'], label: 'Refresh data' },
+  { keys: ['⌘', 'N'], label: 'New instance'   },
 ]
 
+function ShortcutsSection() {
+  return (
+    <SectionShell>
+      <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 600 }}>
+        {SHORTCUTS.map(({ keys, label }, idx) => (
+          <div
+            key={label}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 0',
+              borderBottom: idx < SHORTCUTS.length - 1 ? '1px solid var(--border)' : 'none',
+            }}
+          >
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              {keys.map((k) => (
+                <kbd
+                  key={k}
+                  style={{
+                    fontSize: 11.5,
+                    fontFamily: 'IBM Plex Mono',
+                    fontWeight: 500,
+                    background: 'var(--card-2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    padding: '3px 8px',
+                    color: 'var(--text-primary)',
+                    lineHeight: 1,
+                    minWidth: 26,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {k === '⌘'
+                    ? <span style={{ fontSize: 13.5, lineHeight: 1, transform: 'translateY(1px)' }}>⌘</span>
+                    : k}
+                </kbd>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </SectionShell>
+  )
+}
+
 export default function Settings() {
-  const { theme, setTheme } = useTheme()
+  const [activeTab, setActiveTab] = useState('system')
+  const meQuery = useQuery({
+    queryKey: ['current-user'],
+    queryFn: () => api.getCurrentUser(),
+    retry: false,
+  })
+  const currentRole = meQuery.data?.user?.role || 'user'
 
   return (
     <div className="page">
       <div style={{ marginBottom: 28 }}>
         <h1 className="page-title">Settings</h1>
-        <p className="mono" style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6 }}>
-          Customize Vapor to your preferences
-        </p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 520 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 980 }}>
+        <DetailsTabs tabs={SETTINGS_TABS} value={activeTab} onChange={setActiveTab} />
 
-        {/* Appearance */}
-        <div className="card">
-          <p className="section-title" style={{ marginBottom: 4 }}>Appearance</p>
-          <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 18 }}>Choose how Vapor looks</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {THEMES.map(({ value, label, Icon, desc }) => (
-              <button
-                key={value}
-                onClick={() => setTheme(value)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 13,
-                  padding: '12px 14px', borderRadius: 12, border: '1px solid',
-                  background: theme === value ? 'var(--accent-dim)' : 'var(--card-2)',
-                  borderColor: theme === value ? 'var(--accent-border)' : 'var(--border)',
-                  cursor: 'pointer', textAlign: 'left',
-                  transition: 'border-color 0.13s, background 0.13s',
-                }}
-                onMouseEnter={e => { if (theme !== value) { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.background = 'var(--card-3)' }}}
-                onMouseLeave={e => { if (theme !== value) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--card-2)' }}}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                  background: theme === value ? 'var(--accent)' : 'var(--card-3)',
-                  border: '1px solid var(--border)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: theme === value ? '#0a0a0a' : 'var(--text-secondary)',
-                }}>
-                  <Icon size={15} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1, marginBottom: 4, color: 'var(--text-primary)' }}>{label}</p>
-                  <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1 }}>{desc}</p>
-                </div>
-                {theme === value && <Check size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Keyboard Shortcuts */}
-        <div className="card">
-          <p className="section-title" style={{ marginBottom: 4 }}>Keyboard Shortcuts</p>
-          <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 18 }}>Available shortcuts across the app</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {SHORTCUTS.map(({ keys, label }) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  {keys.map((k, i) => (
-                    <kbd key={i} style={{
-                      fontSize: 11, fontFamily: 'IBM Plex Mono',
-                      background: 'var(--card-2)', border: '1px solid var(--border)',
-                      borderRadius: 6, padding: '3px 8px', color: 'var(--text-primary)',
-                      lineHeight: 1.6,
-                    }}>{k}</kbd>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
+        {activeTab === 'system' && <SystemSection />}
+        {activeTab === 'multipass' && <MultipassSection />}
+        {activeTab === 'auth' && <AuthSection currentRole={currentRole} />}
+        {activeTab === 'shortcuts' && <ShortcutsSection />}
       </div>
     </div>
   )
