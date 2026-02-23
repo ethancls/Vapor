@@ -112,7 +112,7 @@ export default function CustomSelect({
             ? { height: controlHeight, padding: '0 12px' }
             : { padding: multi ? '7px 12px' : '9px 12px' }),
           color: (multi ? multiValues.length > 0 : !!selected) ? 'var(--text-primary)' : 'var(--text-secondary)',
-          fontFamily: 'IBM Plex Mono', fontSize: 12, lineHeight: 1,
+          fontFamily: 'IBM Plex Mono', fontSize: 13, lineHeight: 1,
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.55 : 1,
           textAlign: 'left',

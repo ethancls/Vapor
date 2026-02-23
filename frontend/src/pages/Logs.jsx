@@ -97,7 +97,7 @@ export default function Logs() {
             style={{
               display: 'flex', alignItems: 'center', gap: 7,
               background: 'var(--card-2)', border: '1px solid var(--border)',
-              borderRadius: 'var(--r-sm)', padding: '0 10px', height: 36,
+              borderRadius: 'var(--r-sm)', padding: '0 10px', height: 38,
               width: 'clamp(150px, 22vw, 220px)',
             }}
           >
@@ -108,7 +108,7 @@ export default function Logs() {
               placeholder="Search activity..."
               style={{
                 background: 'none', border: 'none', outline: 'none',
-                color: 'var(--text-primary)', fontFamily: 'IBM Plex Mono', fontSize: 12,
+                color: 'var(--text-primary)', fontFamily: 'IBM Plex Mono', fontSize: 13,
                 width: '100%',
               }}
             />
@@ -125,7 +125,7 @@ export default function Logs() {
             value={actionFilter}
             onChange={setActionFilter}
             options={actionOptions}
-            controlHeight={36}
+            controlHeight={38}
             searchable
             style={{ minWidth: 140, width: 'clamp(160px, 24vw, 240px)', flex: '0 1 auto' }}
           />

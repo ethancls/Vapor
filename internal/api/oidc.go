@@ -391,8 +391,8 @@ func (srv *Server) handleAppAuthSettings(w http.ResponseWriter, r *http.Request)
 			},
 		})
 	case http.MethodPut:
-		if !store.IsOwner(sessionUser.Role) {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": "owner role required"})
+		if !store.HasAdminPrivileges(sessionUser.Role) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "administrator role required"})
 			return
 		}
 		cfg, err := srv.getOIDCSettings()

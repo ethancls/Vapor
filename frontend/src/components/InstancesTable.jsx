@@ -43,7 +43,7 @@ const TARGET_STATE = {
 const EMPTY_INSTANCES = []
 const EMPTY_NAMES = new Set()
 
-const ACTION_BUTTON_SIZE = 34
+const ACTION_BUTTON_SIZE = 40
 const ACTION_BUTTON_GAP = 5
 const ACTION_CELL_HORIZONTAL_PADDING = 36
 const MAX_VISIBLE_ACTION_SLOTS = 4 // Grip included
@@ -96,7 +96,7 @@ function ActionBtn({ icon, color, label, onClick, isLoading = false, disabled = 
         aria-label={label}
         onClick={!isLoading && !disabled ? onClick : undefined}
         style={{
-          width: 34, height: 34, borderRadius: 9, border: 'none',
+          width: ACTION_BUTTON_SIZE, height: ACTION_BUTTON_SIZE, borderRadius: 10, border: 'none',
           background: 'transparent',
           color: disabled && !isLoading ? 'var(--text-muted)' : color,
           cursor: isLoading || disabled ? 'default' : 'pointer',
@@ -104,6 +104,7 @@ function ActionBtn({ icon, color, label, onClick, isLoading = false, disabled = 
           transition: 'background 0.12s, color 0.12s, opacity 0.12s',
           flexShrink: 0,
           opacity: disabled && !isLoading ? 0.3 : 1,
+          touchAction: 'manipulation',
         }}
         onMouseEnter={(e) => {
           if (!isLoading && !disabled) e.currentTarget.style.background = `color-mix(in srgb, ${color} 12%, transparent)`
@@ -242,22 +243,52 @@ export default function InstancesTable({
                 const active = sort.key === key
                 const SortIcon = active ? (sort.dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown
                 const centered = CENTERED_HEADERS.has(label)
+                const ariaSort = key
+                  ? (active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none')
+                  : undefined
                 return (
                   <th
                     key={label}
-                    onClick={() => toggleSort(key)}
+                    aria-sort={ariaSort}
                     style={{
                       padding: '12px 18px',
                       textAlign: centered ? 'center' : 'left',
-                      fontSize: 10.5, fontWeight: 700, color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                      fontSize: 12, fontWeight: 700, color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
                       textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap',
                       cursor: key ? 'pointer' : 'default', userSelect: 'none',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: centered ? 'center' : 'flex-start' }}>
-                      {label}
-                      {key && <SortIcon size={11} style={{ opacity: active ? 1 : 0.4, flexShrink: 0 }} />}
-                    </div>
+                    {key ? (
+                      <button
+                        type="button"
+                        className="instances-table-sort-button"
+                        onClick={() => toggleSort(key)}
+                        aria-label={`Sort by ${label}${active ? `, currently ${sort.dir === 'asc' ? 'ascending' : 'descending'}` : ''}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          justifyContent: centered ? 'center' : 'flex-start',
+                          width: '100%',
+                          border: 'none',
+                          background: 'transparent',
+                          padding: 0,
+                          margin: 0,
+                          font: 'inherit',
+                          color: 'inherit',
+                          cursor: 'pointer',
+                          textTransform: 'inherit',
+                          letterSpacing: 'inherit',
+                        }}
+                      >
+                        {label}
+                        <SortIcon size={11} style={{ opacity: active ? 1 : 0.4, flexShrink: 0 }} />
+                      </button>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: centered ? 'center' : 'flex-start' }}>
+                        {label}
+                      </div>
+                    )}
                   </th>
                 )
               })}

@@ -4,7 +4,9 @@ import { api } from '../api/client'
 import CustomSelect from '../components/CustomSelect'
 import IOSToggle from '../components/IOSToggle'
 import DetailsTabs from '../components/instance-details/DetailsTabs'
+import PermissionNotice from '../components/PermissionNotice'
 import { sileo } from 'sileo'
+import { canReadAuthSettings, canWriteAuthSettings, normalizeRole } from '../utils/rbac'
 
 function fmtRam(mb) {
   if (!mb) return '—'
@@ -162,8 +164,9 @@ function MultipassSection() {
 
 function AuthSection({ currentRole }) {
   const qc = useQueryClient()
-  const canRead = currentRole === 'administrator' || currentRole === 'owner'
-  const canWrite = currentRole === 'owner'
+  const normalizedRole = normalizeRole(currentRole)
+  const canRead = canReadAuthSettings(normalizedRole)
+  const canWrite = canWriteAuthSettings(normalizedRole)
 
   const authQuery = useQuery({
     queryKey: ['auth-settings'],
@@ -239,9 +242,10 @@ function AuthSection({ currentRole }) {
   if (!canRead) {
     return (
       <SectionShell>
-        <p className="mono" style={{ marginTop: 8, color: 'var(--text-secondary)', fontSize: 12.5 }}>
-          Administrator role required to view authentication settings.
-        </p>
+        <PermissionNotice
+          title="Action Not Permitted"
+          description="Administrator or owner role is required to view authentication settings."
+        />
       </SectionShell>
     )
   }
@@ -419,11 +423,6 @@ function AuthSection({ currentRole }) {
               {save.isPending ? 'Saving…' : 'Save'}
             </button>
           </div>
-          {!canWrite && (
-            <p className="mono" style={{ marginTop: -4, marginBottom: 0, color: 'var(--text-secondary)', fontSize: 12 }}>
-              Owner role required to change authentication settings.
-            </p>
-          )}
         </div>
       )}
     </SectionShell>
@@ -496,7 +495,7 @@ export default function Settings() {
     queryFn: () => api.getCurrentUser(),
     retry: false,
   })
-  const currentRole = meQuery.data?.user?.role || 'user'
+  const currentRole = normalizeRole(meQuery.data?.user?.role || 'user')
 
   return (
     <div className="page">

@@ -7,8 +7,16 @@ import Modal from '../components/Modal'
 import ConfirmModal from '../components/ConfirmModal'
 import CustomSelect from '../components/CustomSelect'
 import Tooltip from '../components/Tooltip'
+import PermissionNotice from '../components/PermissionNotice'
+import ForbiddenActionModal from '../components/ForbiddenActionModal'
 import InstancesCheckbox from '../components/instances/InstancesCheckbox'
 import { SkeletonTable } from '../components/Skeletons'
+import {
+  normalizeRole,
+  canAccessUsers,
+  canManageUserTarget,
+  canDeleteUserTarget,
+} from '../utils/rbac'
 
 const COLUMNS = [
   { key: 'login', label: 'Login' },
@@ -46,13 +54,6 @@ function authType(user) {
   if (user.oidc_issuer && user.oidc_subject) parts.push('OIDC')
   if (parts.length === 0) return '—'
   return parts.join(' + ')
-}
-
-function normalizeRole(role) {
-  const v = String(role || '').trim().toLowerCase()
-  if (v === 'owner') return 'owner'
-  if (v === 'admin' || v === 'administrator') return 'administrator'
-  return 'user'
 }
 
 function roleColor(role) {
@@ -176,6 +177,7 @@ function UserFormModal({
   title,
   mode,
   initial,
+  canAssignAdministrator,
   canAssignOwner,
   onClose,
   onSubmit,
@@ -194,13 +196,11 @@ function UserFormModal({
   const isOIDCLinkedEdit = mode === 'edit' && Boolean(initial?.oidc_issuer && initial?.oidc_subject)
 
   const roleOptions = useMemo(() => {
-    const base = [
-      { value: 'user', label: 'User' },
-      { value: 'administrator', label: 'Administrator' },
-    ]
+    const base = [{ value: 'user', label: 'User' }]
+    if (canAssignAdministrator) base.push({ value: 'administrator', label: 'Administrator' })
     if (canAssignOwner) base.push({ value: 'owner', label: 'Owner' })
     return base
-  }, [canAssignOwner])
+  }, [canAssignAdministrator, canAssignOwner])
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
 
@@ -397,6 +397,7 @@ export default function Users() {
   const [passwordUser, setPasswordUser] = useState(null)
   const [deleteUser, setDeleteUser] = useState(null)
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+  const [forbiddenAction, setForbiddenAction] = useState(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const meQuery = useQuery({
@@ -408,12 +409,16 @@ export default function Users() {
   const usersQuery = useQuery({
     queryKey: ['users'],
     queryFn: () => api.getUsers(),
+    enabled: canAccessUsers(normalizeRole(meQuery.data?.user?.role || 'user')),
     retry: false,
   })
 
   const users = useMemo(() => usersQuery.data?.users || [], [usersQuery.data])
   const me = meQuery.data?.user || null
-  const canAssignOwner = normalizeRole(me?.role) === 'owner'
+  const currentRole = normalizeRole(me?.role)
+  const canManageUsers = canAccessUsers(currentRole)
+  const canAssignAdministrator = currentRole === 'owner' || currentRole === 'administrator'
+  const canAssignOwner = currentRole === 'owner'
 
   useEffect(() => {
     const existing = new Set(users.map((u) => u.id))
@@ -511,7 +516,10 @@ export default function Users() {
 
   const allSelected = sortedUsers.length > 0 && sortedUsers.every((u) => selectedIds.has(u.id))
   const selectedUsers = useMemo(() => sortedUsers.filter((u) => selectedIds.has(u.id)), [sortedUsers, selectedIds])
-  const deletableSelectedUsers = useMemo(() => selectedUsers.filter((u) => u.id !== me?.id), [selectedUsers, me?.id])
+  const deletableSelectedUsers = useMemo(
+    () => selectedUsers.filter((u) => canDeleteUserTarget(currentRole, u.role, u.id === me?.id)),
+    [selectedUsers, currentRole, me?.id],
+  )
 
   function toggleSort(key) {
     if (!key) return
@@ -542,6 +550,10 @@ export default function Users() {
 
   function clearSelection() {
     setSelectedIds(new Set())
+  }
+
+  function denyAction(title, description) {
+    setForbiddenAction({ title, description })
   }
 
   async function handleBulkDelete() {
@@ -577,6 +589,31 @@ export default function Users() {
     } finally {
       setBulkDeleting(false)
     }
+  }
+
+  if (meQuery.isLoading) {
+    return (
+      <div className="page">
+        <div style={{ marginBottom: 24 }}>
+          <h1 className="page-title">Users</h1>
+        </div>
+        <SkeletonTable cols={[{ w: 150 }, { w: 120 }, { w: 90 }, { w: 80 }, { w: 130 }, { w: 130 }, { w: 110 }]} rows={6} hasCheckbox minWidth={1040} />
+      </div>
+    )
+  }
+
+  if (!canManageUsers) {
+    return (
+      <div className="page">
+        <div style={{ marginBottom: 24 }}>
+          <h1 className="page-title">Users</h1>
+        </div>
+        <PermissionNotice
+          title="Action Not Permitted"
+          description="Administrator or owner role is required to manage users."
+        />
+      </div>
+    )
   }
 
   return (
@@ -667,9 +704,14 @@ export default function Users() {
           </span>
           <button
             className="btn-danger"
-            onClick={() => setConfirmBulkDelete(true)}
-            disabled={loadingAction || deletableSelectedUsers.length === 0}
-            title={deletableSelectedUsers.length === 0 ? 'Selection contains only your current account' : undefined}
+            onClick={() => {
+              if (deletableSelectedUsers.length === 0) {
+                denyAction('Action Not Permitted', 'Your role does not allow deleting the selected users.')
+                return
+              }
+              setConfirmBulkDelete(true)
+            }}
+            disabled={loadingAction}
           >
             <Trash2 size={12} /> Delete selected
           </button>
@@ -712,6 +754,8 @@ export default function Users() {
                 {sortedUsers.map((u, idx) => {
                   const selected = selectedIds.has(u.id)
                   const isSelf = me?.id === u.id
+                  const canManageTarget = canManageUserTarget(currentRole, u.role)
+                  const canDeleteTarget = canDeleteUserTarget(currentRole, u.role, isSelf)
                   return (
                     <tr
                       key={u.id}
@@ -766,23 +810,45 @@ export default function Users() {
                           <ActionBtn
                             label="Edit user"
                             color="#22d3ee"
-                            onClick={() => setEditUser(u)}
+                            onClick={() => {
+                              if (!canManageTarget) {
+                                denyAction('Action Not Permitted', `You cannot edit ${u.login} because of your role.`)
+                                return
+                              }
+                              setEditUser(u)
+                            }}
                             icon={<Pencil size={14} />}
                             disabled={loadingAction}
                           />
                           <ActionBtn
                             label="Set password"
                             color="var(--accent)"
-                            onClick={() => setPasswordUser(u)}
+                            onClick={() => {
+                              if (!canManageTarget) {
+                                denyAction('Action Not Permitted', `You cannot change password for ${u.login} because of your role.`)
+                                return
+                              }
+                              setPasswordUser(u)
+                            }}
                             icon={<KeyRound size={14} />}
                             disabled={loadingAction}
                           />
                           <ActionBtn
-                            label={isSelf ? 'Cannot delete yourself' : 'Delete user'}
+                            label="Delete user"
                             color="var(--stopped)"
-                            onClick={() => setDeleteUser(u)}
+                            onClick={() => {
+                              if (!canDeleteTarget) {
+                                if (isSelf) {
+                                  denyAction('Action Not Permitted', 'You cannot delete your own account.')
+                                } else {
+                                  denyAction('Action Not Permitted', `You cannot delete ${u.login} because of your role.`)
+                                }
+                                return
+                              }
+                              setDeleteUser(u)
+                            }}
                             icon={<Trash2 size={14} />}
-                            disabled={loadingAction || isSelf}
+                            disabled={loadingAction}
                           />
                         </div>
                       </td>
@@ -800,6 +866,7 @@ export default function Users() {
           title="Create User"
           mode="create"
           initial={{ role: 'user' }}
+          canAssignAdministrator={canAssignAdministrator}
           canAssignOwner={canAssignOwner}
           loading={loadingAction}
           onClose={() => setCreateOpen(false)}
@@ -812,6 +879,7 @@ export default function Users() {
           title={`Edit ${editUser.login}`}
           mode="edit"
           initial={editUser}
+          canAssignAdministrator={canAssignAdministrator}
           canAssignOwner={canAssignOwner}
           loading={loadingAction}
           onClose={() => setEditUser(null)}
@@ -836,7 +904,15 @@ export default function Users() {
           confirmValue={deleteUser.login}
           variant="name"
           onClose={() => setDeleteUser(null)}
-          onConfirm={() => deleteMutation.mutateAsync(deleteUser.id)}
+          onConfirm={() => {
+            const canDelete = canDeleteUserTarget(currentRole, deleteUser.role, deleteUser.id === me?.id)
+            if (!canDelete) {
+              setDeleteUser(null)
+              denyAction('Action Not Permitted', `You cannot delete ${deleteUser.login} because of your role.`)
+              return Promise.resolve()
+            }
+            return deleteMutation.mutateAsync(deleteUser.id)
+          }}
         />
       )}
 
@@ -847,6 +923,14 @@ export default function Users() {
           confirmLabel="Delete selected"
           onClose={() => setConfirmBulkDelete(false)}
           onConfirm={handleBulkDelete}
+        />
+      )}
+
+      {forbiddenAction && (
+        <ForbiddenActionModal
+          title={forbiddenAction.title}
+          description={forbiddenAction.description}
+          onClose={() => setForbiddenAction(null)}
         />
       )}
     </div>

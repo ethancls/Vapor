@@ -13,6 +13,15 @@ export function ThemeProvider({ children }) {
         ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
         : t
       document.documentElement.setAttribute('data-theme', resolved)
+      document.documentElement.style.colorScheme = resolved
+
+      let themeColorMeta = document.querySelector('meta[name="theme-color"]')
+      if (!themeColorMeta) {
+        themeColorMeta = document.createElement('meta')
+        themeColorMeta.setAttribute('name', 'theme-color')
+        document.head.appendChild(themeColorMeta)
+      }
+      themeColorMeta.setAttribute('content', resolved === 'dark' ? '#0a0a0a' : '#f7f8fb')
     }
     apply(theme)
     try { localStorage.setItem('vapor-theme', theme) } catch {}

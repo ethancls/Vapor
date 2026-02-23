@@ -90,6 +90,13 @@ func (srv *Server) requireAdminRequest(r *http.Request) (SessionUser, bool) {
 	return user, true
 }
 
+func canManageTargetUser(actorRole, targetRole string) bool {
+	if store.IsOwner(actorRole) {
+		return true
+	}
+	return store.HasAdminPrivileges(actorRole) && !store.IsOwner(targetRole)
+}
+
 func (srv *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
@@ -311,8 +318,8 @@ func (srv *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request, id s
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
 		return
 	}
-	if !store.IsOwner(actor.Role) && store.IsOwner(current.Role) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "owner role required to edit owner users"})
+	if !canManageTargetUser(actor.Role, current.Role) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "owner role required to manage owner users"})
 		return
 	}
 
@@ -417,7 +424,7 @@ func (srv *Server) handleSetUserPassword(w http.ResponseWriter, r *http.Request,
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
 		return
 	}
-	if !store.IsOwner(actor.Role) && store.IsOwner(target.Role) {
+	if !canManageTargetUser(actor.Role, target.Role) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "owner role required to manage owner users"})
 		return
 	}
@@ -462,7 +469,7 @@ func (srv *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request, id s
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
 		return
 	}
-	if !store.IsOwner(actor.Role) && store.IsOwner(target.Role) {
+	if !canManageTargetUser(actor.Role, target.Role) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "owner role required to delete owner users"})
 		return
 	}

@@ -369,7 +369,7 @@ function TemplateCard({ tpl, active, onSelect, onDelete }) {
           {tpl.name}
         </p>
         {tpl.tier === 'medium' && tpl.is_builtin && (
-          <span style={{ fontSize: 9, background: 'var(--accent)', color: '#0a0a0a', borderRadius: 4, padding: '2px 5px', fontWeight: 800, lineHeight: 1, flexShrink: 0 }}>
+          <span style={{ fontSize: 9, background: 'var(--accent-fill)', color: '#0a0a0a', borderRadius: 4, padding: '2px 5px', fontWeight: 800, lineHeight: 1, flexShrink: 0 }}>
             popular
           </span>
         )}

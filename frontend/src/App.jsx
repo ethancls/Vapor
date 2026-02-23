@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronLeft, TriangleAlert } from 'lucide-react'
 import Sidebar from './components/Sidebar'
@@ -35,55 +35,6 @@ function ThemedToaster() {
   )
 }
 
-function computeViewportGate() {
-  if (typeof window === 'undefined') return { blocked: false, mobile: false, minDesktopWidth: 768 }
-  const w = window.innerWidth || 0
-  const coarse = window.matchMedia?.('(pointer: coarse)')?.matches ?? false
-  const mobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator?.userAgent || '')
-  const minDesktopWidth = 768 // Tailwind md
-  const mobile = coarse || mobileUA || w < minDesktopWidth
-  const desktopTooSmall = !mobile && w < minDesktopWidth
-  return { blocked: mobile || desktopTooSmall, mobile, minDesktopWidth }
-}
-
-function ViewportBlockedScreen({ mobile, minDesktopWidth }) {
-  return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 99999,
-      background: 'var(--bg)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 24,
-    }}>
-      <div style={{
-        width: 'min(560px, 100%)',
-        border: '1px solid var(--border)',
-        borderRadius: 18,
-        background: 'var(--card-1)',
-        padding: '28px 24px',
-        textAlign: 'center',
-      }}>
-        <img src="/vapor.png" width={52} height={52} alt="Vapor" style={{ marginBottom: 14 }} />
-        <p style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>
-          Unsupported screen
-        </p>
-        {mobile ? (
-          <p className="mono" style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-            Use Vapor on desktop for the full experience.
-          </p>
-        ) : (
-          <p className="mono" style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-            Agrandissez la fenêtre du navigateur (minimum {minDesktopWidth}px, environ la moitié de l&apos;écran).
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
 function NotFound() {
   return (
     <div style={{
@@ -94,9 +45,9 @@ function NotFound() {
       <div style={{ textAlign: 'center' }}>
         <p className="mono" style={{ fontSize: 48, fontWeight: 700, color: 'var(--text-secondary)', lineHeight: 1, marginBottom: 12 }}>404</p>
         <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Page not found</p>
-        <a href="/dashboard" className="btn-accent" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+        <Link to="/dashboard" className="btn-accent" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
           Back to Dashboard
-        </a>
+        </Link>
       </div>
     </div>
   )
@@ -189,7 +140,9 @@ function AppInner({ onLogout }) {
   const daemonOk = !statsError && (stats?.daemon_running ?? true)
 
   return (
-    <div className="layout">
+    <>
+      <a href="#main-content" className="skip-link">Skip to Main Content</a>
+      <div className="layout">
       <Sidebar
         onNewInstance={goNewInstance}
         collapsed={collapsed}
@@ -197,7 +150,7 @@ function AppInner({ onLogout }) {
         onLogout={onLogout}
       />
 
-      <main className="main-content">
+      <main id="main-content" className="main-content">
         {!daemonOk && (
           <div style={{ padding: '16px 32px 0' }}>
             <div style={{
@@ -216,14 +169,15 @@ function AppInner({ onLogout }) {
         )}
         {backTarget && (
           <div className="global-back-link-wrap" style={{ padding: '6px 32px 0', marginBottom: '-12px', transform: 'translateY(6px)' }}>
-            <button
-              onClick={() => navigate(backTarget)}
+            <Link
+              to={backTarget}
+              state={{ from: location.pathname }}
               style={{
                 background: 'none',
                 border: 'none',
                 padding: '2px 0',
                 height: 'auto',
-                color: 'var(--accent)',
+                color: 'var(--accent-text)',
                 fontWeight: 700,
                 fontSize: 13,
                 letterSpacing: '0.01em',
@@ -235,7 +189,7 @@ function AppInner({ onLogout }) {
             >
               <ChevronLeft size={13} />
               Back to {routeLabel(backTarget)}
-            </button>
+            </Link>
           </div>
         )}
         <Routes>
@@ -254,24 +208,13 @@ function AppInner({ onLogout }) {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
-    </div>
+      </div>
+    </>
   )
 }
 
 export default function App() {
   const [authState, setAuthState] = useState('loading') // 'loading' | 'authenticated' | 'unauthenticated'
-  const [viewportGate, setViewportGate] = useState(() => computeViewportGate())
-
-  useEffect(() => {
-    const update = () => setViewportGate(computeViewportGate())
-    update()
-    window.addEventListener('resize', update)
-    window.addEventListener('orientationchange', update)
-    return () => {
-      window.removeEventListener('resize', update)
-      window.removeEventListener('orientationchange', update)
-    }
-  }, [])
 
   useEffect(() => {
     authMe().then(user => {
@@ -289,14 +232,6 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)' }}>
           <div className="daemon-dot running" style={{ width: 10, height: 10 }} />
         </div>
-      </ThemeProvider>
-    )
-  }
-
-  if (viewportGate.blocked) {
-    return (
-      <ThemeProvider>
-        <ViewportBlockedScreen mobile={viewportGate.mobile} minDesktopWidth={viewportGate.minDesktopWidth} />
       </ThemeProvider>
     )
   }

@@ -6,7 +6,7 @@ export default function InstancesCheckbox({ checked, onChange }) {
         width: 18,
         height: 18,
         borderRadius: 5,
-        border: `1px solid ${checked ? 'var(--accent)' : 'var(--border-hover)'}`,
+        border: `1px solid ${checked ? 'var(--accent-fill)' : 'var(--border-hover)'}`,
         background: checked ? 'var(--accent-dim)' : 'var(--card-2)',
         cursor: 'pointer',
         display: 'flex',
@@ -21,7 +21,7 @@ export default function InstancesCheckbox({ checked, onChange }) {
         width: 8,
         height: 8,
         borderRadius: 2,
-        background: checked ? 'var(--accent)' : 'transparent',
+        background: checked ? 'var(--accent-fill)' : 'transparent',
       }} />
     </button>
   )

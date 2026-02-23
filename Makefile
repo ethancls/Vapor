@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 PATH_EXT := /tmp/go/bin:/home/ethancls/go/bin:/home/ethancls/.nvm/versions/node/v20.19.0/bin
-VAPOR_UI_PASSWORD ?= dev
+SERVICE_USER ?= $(shell id -un)
 
 .PHONY: dev build run install uninstall service-status logs
 
@@ -8,7 +8,6 @@ VAPOR_UI_PASSWORD ?= dev
 dev:
 	@mkdir -p tmp
 	@export PATH="$(PATH_EXT):$$PATH"; \
-	export VAPOR_UI_PASSWORD="$(VAPOR_UI_PASSWORD)"; \
 	export VAPOR_BIND=0.0.0.0:8100; \
 	trap 'kill 0' SIGINT SIGTERM; \
 	air & \
@@ -24,16 +23,16 @@ build:
 
 ## Lance le binaire de prod
 run: build
-	VAPOR_UI_PASSWORD=$(VAPOR_UI_PASSWORD) ./vapor
+	./vapor
 
 install:
-	sudo ./deploy/install.sh
+	./deploy/install.sh
 
 uninstall:
 	sudo ./deploy/uninstall.sh
 
 service-status:
-	systemctl --no-pager status vapor.service
+	systemctl --no-pager status "vapor@$(SERVICE_USER)"
 
 logs:
-	journalctl -u vapor.service -f
+	journalctl -u "vapor@$(SERVICE_USER)" -f

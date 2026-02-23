@@ -9,6 +9,15 @@ ENV_DIR=/etc/vapor
 ENV_FILE=$ENV_DIR/vapor.env
 DB_DIR=/var/lib/vapor
 
+generate_jwt_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -base64 32
+    return
+  fi
+  # Fallback secret if openssl is unavailable.
+  date +%s | sha256sum | awk '{print $1}'
+}
+
 # 1. Check multipass
 if ! command -v multipass &>/dev/null; then
   echo "ERROR: multipass is not in PATH. Install it first: snap install multipass"
@@ -51,23 +60,17 @@ echo "✓ Binary installed"
 if [ ! -f "$ENV_FILE" ]; then
   echo "→ Creating $ENV_FILE..."
   sudo mkdir -p "$ENV_DIR"
+  JWT_SECRET="$(generate_jwt_secret)"
   sudo tee "$ENV_FILE" >/dev/null <<EOF
 VAPOR_BIND=0.0.0.0:8100
-VAPOR_UI_USERNAME=admin
-VAPOR_UI_PASSWORD=changeme
 VAPOR_SESSION_TTL=24h
 VAPOR_LOG_LEVEL=info
 VAPOR_MULTIPASS_BINARY=multipass
+VAPOR_JWT_SECRET=$JWT_SECRET
 VAPOR_DB_PATH=$DB_DIR/vapor.db
 VAPOR_ACTIVITY_RETENTION=5000
 EOF
 
-  # Prompt for password
-  echo ""
-  read -rp "Set dashboard password (leave blank to keep 'changeme'): " UI_PASS
-  if [ -n "$UI_PASS" ]; then
-    sudo sed -i "s|^VAPOR_UI_PASSWORD=.*|VAPOR_UI_PASSWORD=$UI_PASS|" "$ENV_FILE"
-  fi
   echo "✓ Env file created: $ENV_FILE"
 else
   echo "✓ Env file already exists: $ENV_FILE"
@@ -81,7 +84,6 @@ echo "✓ DB directory: $DB_DIR"
 # 8. Install systemd unit
 echo "→ Installing systemd unit..."
 sudo cp "$REPO_ROOT/deploy/vapor.service" "$SERVICE_FILE"
-sudo sed -i "s|%i|$CURRENT_USER|g" "$SERVICE_FILE"
 sudo systemctl daemon-reload
 sudo systemctl enable --now "vapor@$CURRENT_USER"
 echo "✓ Service enabled and started"
@@ -93,4 +95,5 @@ echo "  Vapor is running!"
 echo "  Dashboard: http://$(hostname -I | awk '{print $1}'):8100"
 echo "  Logs:      journalctl -u vapor@$CURRENT_USER -f"
 echo "  Config:    $ENV_FILE"
+echo "  Default login (first run only): vapor / vap0r"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

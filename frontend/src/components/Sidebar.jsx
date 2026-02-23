@@ -1,10 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import { version as APP_VERSION } from '../../package.json'
-import { Boxes, Plus, Sun, Moon, Monitor, ChevronLeft, Files, EthernetPort, CircleFadingArrowUp, Check, LogOut, Settings, Users, History, Layers2, LayoutGrid } from 'lucide-react'
+import { Boxes, Plus, Sun, Moon, Monitor, ChevronLeft, Files, EthernetPort, CircleFadingArrowUp, Check, LogOut, Settings, Users, History, Layers2, LayoutGrid, Lock } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTheme } from '../contexts/ThemeContext'
 import { api, authLogout } from '../api/client'
+import ForbiddenActionModal from './ForbiddenActionModal'
+import { canAccessUsers, normalizeRole } from '../utils/rbac'
 
 const NAV = [
   { group: null,        to: '/dashboard', Icon: LayoutGrid, label: 'Dashboard' },
@@ -24,6 +26,11 @@ const THEME_OPTIONS = [
   { value: 'system', label: 'System', Icon: Monitor },
 ]
 const THEME_ORDER = ['dark', 'light', 'system']
+
+function canAccessNavItem(role, to) {
+  if (to === '/users') return canAccessUsers(role)
+  return true
+}
 
 function SidebarAvatar({ user, size = 30 }) {
   const [failed, setFailed] = useState(false)
@@ -48,6 +55,8 @@ function SidebarAvatar({ user, size = 30 }) {
         <img
           src={avatar}
           alt={user?.login || 'avatar'}
+          width={size}
+          height={size}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           onError={() => setFailed(true)}
         />
@@ -84,6 +93,8 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
     retry: false,
   })
   const me = meData?.user || null
+  const [forbiddenNav, setForbiddenNav] = useState(null)
+  const currentRole = normalizeRole(me?.role)
 
   const accountName = me?.name || me?.login || 'Account'
   const accountLogin = me?.login || 'local'
@@ -99,6 +110,10 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
   const activeTheme = useMemo(
     () => THEME_OPTIONS.find((option) => option.value === theme) || THEME_OPTIONS[0],
     [theme],
+  )
+  const navEntries = useMemo(
+    () => NAV.map((item) => ({ ...item, allowed: canAccessNavItem(currentRole, item.to) })),
+    [currentRole],
   )
 
   function cycleTheme() {
@@ -186,9 +201,10 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
       </div>
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {NAV.map(({ group, to, Icon, label, matchPaths, matchPrefix }, idx) => {
+        {navEntries.map((item, idx) => {
+          const { group, to, label, matchPaths, matchPrefix, allowed } = item
           const isActive = (matchPaths && matchPaths.includes(pathname)) || (matchPrefix && pathname.startsWith(matchPrefix)) || pathname === to
-          const prevGroup = idx > 0 ? NAV[idx - 1].group : null
+          const prevGroup = idx > 0 ? navEntries[idx - 1].group : null
           const startsGroup = !!group && group !== prevGroup
           return (
             <div key={to} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -210,46 +226,66 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
                   <span style={{ width: '100%', borderTop: '1px dashed var(--border)' }} />
                 </div>
               )}
-                      <NavLink
-                to={to}
-                state={{ from: pathname }}
-                title={collapsed ? label : undefined}
-                className={() => `nav-item${isActive ? ' active' : ''}`}
-              >
-                {/* Icon — with dot badge when collapsed and updates pending */}
-                <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-                  <Icon size={22} />
-                  {to === '/updates' && collapsed && outdatedCount > 0 && (
-                    <span style={{
-                      position: 'absolute', top: -3, right: -4,
-                      width: 10, height: 10, borderRadius: '50%',
-                      background: '#22d3ee',
-                      border: '2px solid var(--card-1)',
-                    }} />
-                  )}
-                </span>
+              {allowed ? (
+                <NavLink
+                  to={to}
+                  state={{ from: pathname }}
+                  title={collapsed ? label : undefined}
+                  className={() => `nav-item${isActive ? ' active' : ''}`}
+                >
+                  {/* Icon — with dot badge when collapsed and updates pending */}
+                  <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                    <item.Icon size={22} />
+                    {to === '/updates' && collapsed && outdatedCount > 0 && (
+                      <span style={{
+                        position: 'absolute', top: -3, right: -4,
+                        width: 10, height: 10, borderRadius: '50%',
+                        background: '#22d3ee',
+                        border: '2px solid var(--card-1)',
+                      }} />
+                    )}
+                  </span>
 
-                {/* Label — with count or check badge when expanded */}
-                <span className="sidebar-label" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                  {label}
-                  {to === '/updates' && !collapsed && outdatedCount > 0 && (
-                    <span style={{
-                      marginLeft: 'auto',
-                      flexShrink: 0,
-                      color: '#22d3ee',
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      fontFamily: 'IBM Plex Mono',
-                      lineHeight: 1,
-                    }}>
-                      {outdatedCount}
-                    </span>
-                  )}
-                  {to === '/updates' && !collapsed && allCheckedAndOk && (
-                    <Check size={11} style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--running)' }} />
-                  )}
-                </span>
-              </NavLink>
+                  {/* Label — with count or check badge when expanded */}
+                  <span className="sidebar-label" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                    {label}
+                    {to === '/updates' && !collapsed && outdatedCount > 0 && (
+                      <span style={{
+                        marginLeft: 'auto',
+                        flexShrink: 0,
+                        color: '#22d3ee',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        fontFamily: 'IBM Plex Mono',
+                        lineHeight: 1,
+                      }}>
+                        {outdatedCount}
+                      </span>
+                    )}
+                    {to === '/updates' && !collapsed && allCheckedAndOk && (
+                      <Check size={11} style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--running)' }} />
+                    )}
+                  </span>
+                </NavLink>
+              ) : (
+                <button
+                  type="button"
+                  title={collapsed ? `${label} (Restricted)` : undefined}
+                  className="nav-item nav-item-locked"
+                  onClick={() => setForbiddenNav({
+                    title: 'Action Not Permitted',
+                    description: `Your role does not allow access to ${label}.`,
+                  })}
+                >
+                  <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                    <item.Icon size={22} />
+                  </span>
+                  <span className="sidebar-label" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                    {label}
+                    {!collapsed && <Lock size={11} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+                  </span>
+                </button>
+              )}
             </div>
           )
         })}
@@ -259,16 +295,16 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
 
       {/* New instance */}
       {collapsed ? (
-        <button
-          type="button"
-          aria-label="New Instance"
-          title="New Instance"
+          <button
+            type="button"
+            aria-label="New Instance"
+            title="New Instance"
           onClick={onNewInstance}
           className=""
           style={{
-            background: 'var(--accent)', border: 'none', borderRadius: 10,
+            background: 'var(--accent-fill)', border: 'none', borderRadius: 10,
             width: '100%',
-            height: 36,
+            height: 40,
             cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             marginBottom: 8,
@@ -329,6 +365,14 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
           )}
         </button>
       </div>
+
+      {forbiddenNav && (
+        <ForbiddenActionModal
+          title={forbiddenNav.title}
+          description={forbiddenNav.description}
+          onClose={() => setForbiddenNav(null)}
+        />
+      )}
 
     </aside>
   )

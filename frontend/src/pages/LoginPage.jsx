@@ -12,6 +12,7 @@ export default function LoginPage({ onLogin }) {
   const [oidcEnabled, setOIDCEnabled] = useState(false)
   const [localPasswordEnabled, setLocalPasswordEnabled] = useState(true)
   const [oidcLoading, setOIDCLoading] = useState(true)
+  const canAutoFocus = typeof window !== 'undefined' && !(window.matchMedia?.('(pointer: coarse)').matches)
 
   useEffect(() => {
     const oidcError = typeof window !== 'undefined'
@@ -85,18 +86,21 @@ export default function LoginPage({ onLogin }) {
                   Username
                 </label>
                 <input
+                  className="login-input"
                   id="login-username"
+                  name="username"
                   type="text"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   autoComplete="username"
-                  autoFocus
+                  spellCheck={false}
+                  autoFocus={canAutoFocus}
                   required
                   style={{
                     background: 'var(--card-2)', border: '1px solid var(--border)',
                     borderRadius: 10, padding: '10px 14px',
                     color: 'var(--text-primary)', fontSize: 14,
-                    outline: 'none', fontFamily: 'inherit',
+                    fontFamily: 'inherit',
                   }}
                 />
               </div>
@@ -107,7 +111,9 @@ export default function LoginPage({ onLogin }) {
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
+                    className="login-input"
                     id="login-password"
+                    name="password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
@@ -118,7 +124,7 @@ export default function LoginPage({ onLogin }) {
                       background: 'var(--card-2)', border: '1px solid var(--border)',
                       borderRadius: 10, padding: '10px 38px 10px 14px',
                       color: 'var(--text-primary)', fontSize: 14,
-                      outline: 'none', fontFamily: 'inherit',
+                      fontFamily: 'inherit',
                     }}
                   />
                   <Tooltip
@@ -131,6 +137,7 @@ export default function LoginPage({ onLogin }) {
                     }}
                   >
                     <button
+                      className="login-password-toggle"
                       type="button"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                       onClick={() => setShowPassword((v) => !v)}
@@ -158,7 +165,7 @@ export default function LoginPage({ onLogin }) {
           )}
 
           {error && (
-            <p style={{ fontSize: 13, color: '#ff4444', margin: 0, textAlign: 'center' }}>{error}</p>
+            <p aria-live="polite" style={{ fontSize: 13, color: '#ff4444', margin: 0, textAlign: 'center' }}>{error}</p>
           )}
 
           {localPasswordEnabled && (

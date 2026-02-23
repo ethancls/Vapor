@@ -24,7 +24,7 @@ export default function OverviewCard({ onNewInstance }) {
 
   return (
     <div style={{
-      background: 'var(--accent)',
+      background: 'var(--accent-fill)',
       borderRadius: 'var(--r-card)',
       padding: 24,
       position: 'relative',
