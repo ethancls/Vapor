@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -119,12 +120,7 @@ func (srv *Server) handleHostInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cpus := runtime.NumCPU()
-
-	var ramMB int64
-	var si syscall.Sysinfo_t
-	if err := syscall.Sysinfo(&si); err == nil {
-		ramMB = int64(si.Totalram) * int64(si.Unit) / (1024 * 1024)
-	}
+	ramMB := detectHostMemoryMB()
 
 	var diskFreeGB int64 = 100
 	var statfs syscall.Statfs_t
@@ -137,6 +133,37 @@ func (srv *Server) handleHostInfo(w http.ResponseWriter, r *http.Request) {
 		"memory_mb":    ramMB,
 		"disk_free_gb": diskFreeGB,
 	})
+}
+
+func detectHostMemoryMB() int64 {
+	// Linux fast-path
+	if data, err := os.ReadFile("/proc/meminfo"); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			if !strings.HasPrefix(line, "MemTotal:") {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) < 2 {
+				return 0
+			}
+			kb, parseErr := strconv.ParseInt(fields[1], 10, 64)
+			if parseErr != nil || kb <= 0 {
+				return 0
+			}
+			return kb / 1024
+		}
+	}
+
+	// macOS fallback
+	out, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
+	if err != nil {
+		return 0
+	}
+	bytes, parseErr := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
+	if parseErr != nil || bytes <= 0 {
+		return 0
+	}
+	return bytes / (1024 * 1024)
 }
 
 // --- GET /api/system/commands ---

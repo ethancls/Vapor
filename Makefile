@@ -10,7 +10,12 @@ dev:
 	@export PATH="$(PATH_EXT):$$PATH"; \
 	export VAPOR_BIND=0.0.0.0:8100; \
 	trap 'kill 0' SIGINT SIGTERM; \
-	air & \
+	if command -v air >/dev/null 2>&1; then \
+		air & \
+	else \
+		echo "air not found, starting backend without hot reload"; \
+		go run . & \
+	fi; \
 	npm run dev --prefix frontend & \
 	wait
 
