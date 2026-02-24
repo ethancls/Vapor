@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import CustomSelect from '../components/CustomSelect'
 import IOSToggle from '../components/IOSToggle'
 import DetailsTabs from '../components/instance-details/DetailsTabs'
 import PermissionNotice from '../components/PermissionNotice'
+import useShortcutPlatform from '../hooks/useShortcutPlatform'
 import { sileo } from 'sileo'
 import { canReadAuthSettings, canWriteAuthSettings, normalizeRole } from '../utils/rbac'
 
@@ -29,8 +31,14 @@ const SETTINGS_TABS = [
   { value: 'auth',       label: 'Auth' },
   { value: 'shortcuts',  label: 'Shortcuts' },
 ]
+const SETTINGS_TAB_VALUES = new Set(SETTINGS_TABS.map((tab) => tab.value))
 
 const REDACTED_DISPLAY = '••••••••••••'
+
+function normalizeSettingsTab(tab) {
+  const candidate = String(tab || '')
+  return SETTINGS_TAB_VALUES.has(candidate) ? candidate : 'system'
+}
 
 function SectionShell({ children }) {
   return (
@@ -193,8 +201,7 @@ function AuthSection({ currentRole }) {
   useEffect(() => {
     const oidc = authQuery.data?.oidc
     if (!oidc) return
-    setForm((f) => ({
-      ...f,
+    const nextValues = {
       local_password_enabled: authQuery.data?.local?.password_enabled ?? true,
       enabled: Boolean(oidc.enabled),
       issuer: oidc.issuer || '',
@@ -207,7 +214,11 @@ function AuthSection({ currentRole }) {
       claim_avatar: oidc.claim_avatar || 'picture',
       claim_groups: oidc.claim_groups || 'groups',
       admin_groups: oidc.admin_groups || '',
-    }))
+    }
+    const timer = setTimeout(() => {
+      setForm((f) => ({ ...f, ...nextValues }))
+    }, 0)
+    return () => clearTimeout(timer)
   }, [authQuery.data])
 
   const save = useMutation({
@@ -430,19 +441,56 @@ function AuthSection({ currentRole }) {
 }
 
 const SHORTCUTS = [
-  { keys: ['⌘', 'K'], label: 'Open search in Dashboard' },
-  { keys: ['⌘', 'I'], label: 'Go to Instances' },
-  { keys: ['⌘', 'S'], label: 'Go to Snapshots' },
-  { keys: ['⌘', 'U'], label: 'Go to Updates'  },
-  { keys: ['⌘', 'B'], label: 'Toggle sidebar' },
-  { keys: ['⌘', 'N'], label: 'New instance'   },
+  { label: 'Open search in Dashboard', key: 'K' },
+  { label: 'Go to Dashboard', key: 'D' },
+  { label: 'Go to Instances', key: 'I' },
+  { label: 'Go to Snapshots', key: 'S' },
+  { label: 'Go to Updates', key: 'U' },
+  { label: 'Toggle sidebar', key: 'B' },
+  { label: 'New instance', key: 'N' },
 ]
 
+function ShortcutKeys({ keys }) {
+  return (
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+      {keys.map((k) => (
+        <kbd
+          key={k}
+          style={{
+            fontSize: 11.5,
+            fontFamily: 'IBM Plex Mono',
+            fontWeight: 500,
+            background: 'var(--card-2)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            padding: '3px 8px',
+            color: 'var(--text-primary)',
+            lineHeight: 1,
+            minWidth: 26,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {k === '⌘'
+            ? <span style={{ fontSize: 13.5, lineHeight: 1, transform: 'translateY(1px)' }}>⌘</span>
+            : k}
+        </kbd>
+      ))}
+    </div>
+  )
+}
+
 function ShortcutsSection() {
+  const { modifierKeyDisplay, osLabel } = useShortcutPlatform()
+
   return (
     <SectionShell>
       <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 600 }}>
-        {SHORTCUTS.map(({ keys, label }, idx) => (
+        <p className="mono" style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--text-muted)' }}>
+          Active keyboard mapping: {osLabel}
+        </p>
+        {SHORTCUTS.map(({ label, key }, idx) => (
           <div
             key={label}
             style={{
@@ -455,32 +503,7 @@ function ShortcutsSection() {
             }}
           >
             <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              {keys.map((k) => (
-                <kbd
-                  key={k}
-                  style={{
-                    fontSize: 11.5,
-                    fontFamily: 'IBM Plex Mono',
-                    fontWeight: 500,
-                    background: 'var(--card-2)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 6,
-                    padding: '3px 8px',
-                    color: 'var(--text-primary)',
-                    lineHeight: 1,
-                    minWidth: 26,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {k === '⌘'
-                    ? <span style={{ fontSize: 13.5, lineHeight: 1, transform: 'translateY(1px)' }}>⌘</span>
-                    : k}
-                </kbd>
-              ))}
-            </div>
+            <ShortcutKeys keys={[modifierKeyDisplay, key]} />
           </div>
         ))}
       </div>
@@ -489,13 +512,48 @@ function ShortcutsSection() {
 }
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState('system')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = normalizeSettingsTab(searchParams.get('tab'))
   const meQuery = useQuery({
     queryKey: ['current-user'],
     queryFn: () => api.getCurrentUser(),
     retry: false,
   })
   const currentRole = normalizeRole(meQuery.data?.user?.role || 'user')
+
+  useEffect(() => {
+    const focusId = searchParams.get('focus')
+    if (!focusId) return undefined
+    const targetTab = normalizeSettingsTab(searchParams.get('tab'))
+    if (targetTab !== activeTab) return undefined
+
+    const raf = requestAnimationFrame(() => {
+      const el = document.getElementById(focusId)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      if (typeof el.focus === 'function') el.focus({ preventScroll: true })
+    })
+
+    const timer = setTimeout(() => {
+      const next = new URLSearchParams(searchParams)
+      next.delete('focus')
+      setSearchParams(next, { replace: true })
+    }, 280)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(timer)
+    }
+  }, [activeTab, searchParams, setSearchParams])
+
+  function handleTabChange(nextTab) {
+    const normalized = normalizeSettingsTab(nextTab)
+    const nextParams = new URLSearchParams(searchParams)
+    if (normalized === 'system') nextParams.delete('tab')
+    else nextParams.set('tab', normalized)
+    nextParams.delete('focus')
+    setSearchParams(nextParams, { replace: true })
+  }
 
   return (
     <div className="page">
@@ -504,7 +562,7 @@ export default function Settings() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 980 }}>
-        <DetailsTabs tabs={SETTINGS_TABS} value={activeTab} onChange={setActiveTab} />
+        <DetailsTabs tabs={SETTINGS_TABS} value={activeTab} onChange={handleTabChange} />
 
         {activeTab === 'system' && <SystemSection />}
         {activeTab === 'multipass' && <MultipassSection />}

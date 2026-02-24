@@ -32,9 +32,9 @@ export default function ActivityFeed() {
   const grouped = groupByDate(filtered.slice(0, 40))
 
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <div className="card dashboard-activity-card">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div className="dashboard-activity-header">
         <p className="section-title">Recent Activity</p>
         <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-secondary)' }}>
           {all.length} event{all.length !== 1 ? 's' : ''}
@@ -42,7 +42,7 @@ export default function ActivityFeed() {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 5, marginBottom: 18, flexWrap: 'wrap' }}>
+      <div className="dashboard-activity-filters">
         {FILTERS.map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`filter-pill${filter === f ? ' active' : ''}`}
@@ -52,7 +52,7 @@ export default function ActivityFeed() {
       </div>
 
       {/* Feed */}
-      <div style={{ overflowY: 'auto', maxHeight: 400 }}>
+      <div className="dashboard-activity-scroll">
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {['s0','s1','s2','s3','s4'].map(k => (

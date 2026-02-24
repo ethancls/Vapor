@@ -73,6 +73,12 @@ const COLUMNS = [
   { key: 'comment',   label: 'Comment'   },
   { key: null,        label: 'Actions'   },
 ]
+const MOBILE_TABLE_BREAKPOINT = '(max-width: 900px)'
+
+function defaultSnapshotsViewMode() {
+  if (typeof window === 'undefined') return 'table'
+  return window.matchMedia(MOBILE_TABLE_BREAKPOINT).matches ? 'cards' : 'table'
+}
 
 const SKEL_COLS_TABLE = [
   { w: 140 },
@@ -134,13 +140,6 @@ function ActionBtn({ icon, color, label, onClick, disabled }) {
 }
 
 /* ── Create modal ─────────────────────────────────────────────────────── */
-
-function defaultComment(instanceName) {
-  const now  = new Date()
-  const date = now.toLocaleDateString('en', { year: 'numeric', month: 'short', day: 'numeric' })
-  const time = now.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
-  return `Snapshot of ${instanceName} — ${date} at ${time}`
-}
 
 function CreateSnapshotModal({ instances, onClose, onConfirm }) {
   const [selectedInstance, setSelectedInstance] = useState('')
@@ -398,7 +397,7 @@ function SnapshotCard({ item, selected, onSelect, onRestore, onDelete, busy }) {
               background: 'none', border: 'none', padding: '8px 11px',
               color: busy || !(item.instance && item.snapshot) ? 'var(--text-muted)' : '#a78bfa',
               fontSize: 13, cursor: busy || !(item.instance && item.snapshot) ? 'not-allowed' : 'pointer',
-              borderRadius: 8, fontFamily: 'Syne', fontWeight: 600, opacity: busy || !(item.instance && item.snapshot) ? 0.45 : 1,
+              borderRadius: 8, fontWeight: 600, opacity: busy || !(item.instance && item.snapshot) ? 0.45 : 1,
               lineHeight: 1,
             }}
             onMouseEnter={e => { if (!busy && item.instance && item.snapshot) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
@@ -415,7 +414,7 @@ function SnapshotCard({ item, selected, onSelect, onRestore, onDelete, busy }) {
               background: 'none', border: 'none', padding: '8px 11px',
               color: busy || !(item.instance && item.snapshot) ? 'var(--text-muted)' : 'var(--stopped)',
               fontSize: 13, cursor: busy || !(item.instance && item.snapshot) ? 'not-allowed' : 'pointer',
-              borderRadius: 8, fontFamily: 'Syne', fontWeight: 600, opacity: busy || !(item.instance && item.snapshot) ? 0.45 : 1,
+              borderRadius: 8, fontWeight: 600, opacity: busy || !(item.instance && item.snapshot) ? 0.45 : 1,
               lineHeight: 1,
             }}
             onMouseEnter={e => { if (!busy && item.instance && item.snapshot) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
@@ -437,7 +436,7 @@ export default function Snapshots() {
   const [query,          setQuery]          = useState('')
   const [instanceFilter, setInstanceFilter] = useState('all')
   const [sort,           setSort]           = useState({ key: 'created', dir: 'desc' })
-  const [viewMode,       setViewMode]       = useState('table')
+  const [viewMode,       setViewMode]       = useState(defaultSnapshotsViewMode)
   const [selectedRefs,   setSelectedRefs]   = useState(new Set())
   const [createOpen,     setCreateOpen]     = useState(false)
   const [deleteTarget,   setDeleteTarget]   = useState(null)
@@ -447,7 +446,8 @@ export default function Snapshots() {
   const snapshotsQuery = useQuery({ queryKey: ['snapshots'], queryFn: () => api.getAllSnapshots(), refetchInterval: 10000 })
   const instancesQuery = useQuery({ queryKey: ['instances'], queryFn: () => api.getInstances(),   refetchInterval: 10000 })
 
-  const instances = instancesQuery.data?.instances || []
+  const instanceRows = instancesQuery.data?.instances
+  const instances = useMemo(() => instanceRows ?? [], [instanceRows])
   const snapshots = useMemo(
     () => (snapshotsQuery.data?.snapshots || []).map((item, i) => parseSnapshot(item, i)),
     [snapshotsQuery.data],
@@ -574,9 +574,10 @@ export default function Snapshots() {
           }}>
             <Search size={12} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
             <input
+              className="mono"
               value={query} onChange={(e) => setQuery(e.target.value)}
               placeholder="Search snapshots..."
-              style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'IBM Plex Mono', fontSize: 12, width: '100%' }}
+              style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 12, width: '100%' }}
             />
             {query && (
               <button onClick={() => setQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
@@ -594,19 +595,19 @@ export default function Snapshots() {
 
           {/* View toggle */}
           <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', overflow: 'hidden', height: 36 }}>
-            {[{ mode: 'table', Icon: Table2, label: 'Table view' }, { mode: 'cards', Icon: Grid3X3, label: 'Card view' }].map(({ mode, Icon, label }) => {
-              const active = viewMode === mode
+            {[{ mode: 'table', Icon: Table2, label: 'Table view' }, { mode: 'cards', Icon: Grid3X3, label: 'Card view' }].map((item) => {
+              const active = viewMode === item.mode
               return (
                 <button
-                  key={mode}
+                  key={item.mode}
                   type="button"
-                  aria-label={label}
-                  onClick={() => setViewMode(mode)}
+                  aria-label={item.label}
+                  onClick={() => setViewMode(item.mode)}
                   style={{ border: 'none', borderRadius: 0, height: 36, padding: '0 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', background: active ? 'var(--accent-dim)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text-secondary)', transition: 'background 0.15s, color 0.15s' }}
                   onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-primary)' } }}
                   onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)' } }}
                 >
-                  <Icon size={13} />
+                  <item.Icon size={13} />
                 </button>
               )
             })}

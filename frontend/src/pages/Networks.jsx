@@ -94,6 +94,12 @@ const COLUMNS = [
   { key: 'address',   label: 'Address'   },
   { key: 'instances', label: 'Instances' },
 ]
+const MOBILE_TABLE_BREAKPOINT = '(max-width: 900px)'
+
+function defaultNetworksViewMode() {
+  if (typeof window === 'undefined') return 'table'
+  return window.matchMedia(MOBILE_TABLE_BREAKPOINT).matches ? 'cards' : 'table'
+}
 
 const SKEL_COLS = [
   { w: 110 },
@@ -250,7 +256,7 @@ function CardsView({ networks }) {
 export default function Networks() {
   const [query, setQuery]           = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
-  const [viewMode, setViewMode]     = useState('table')
+  const [viewMode, setViewMode]     = useState(defaultNetworksViewMode)
 
   const { data, isLoading } = useQuery({
     queryKey: ['networks'],
@@ -305,10 +311,11 @@ export default function Networks() {
           }}>
             <Search size={12} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
             <input
+              className="mono"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search networks..."
-              style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'IBM Plex Mono', fontSize: 12, width: '100%' }}
+              style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 12, width: '100%' }}
             />
             {query && (
               <button onClick={() => setQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
@@ -329,20 +336,20 @@ export default function Networks() {
             {[
               { mode: 'table', Icon: Table2,  title: 'Table view'  },
               { mode: 'cards', Icon: Grid3X3, title: 'Cards view'  },
-            ].map(({ mode, Icon, title }) => (
+            ].map((item) => (
               <button
-                key={mode}
+                key={item.mode}
                 type="button"
-                aria-label={title}
+                aria-label={item.title}
                 className="btn-ghost"
-                onClick={() => setViewMode(mode)}
+                onClick={() => setViewMode(item.mode)}
                 style={{
                   border: 'none', borderRadius: 0, height: '100%', padding: '0 12px',
-                  background: viewMode === mode ? 'var(--accent-dim)' : 'transparent',
-                  color: viewMode === mode ? 'var(--accent)' : 'var(--text-secondary)',
+                  background: viewMode === item.mode ? 'var(--accent-dim)' : 'transparent',
+                  color: viewMode === item.mode ? 'var(--accent)' : 'var(--text-secondary)',
                 }}
               >
-                <Icon size={13} />
+                <item.Icon size={13} />
               </button>
             ))}
           </div>

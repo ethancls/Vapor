@@ -100,7 +100,6 @@ export default function LoginPage({ onLogin }) {
                     background: 'var(--card-2)', border: '1px solid var(--border)',
                     borderRadius: 10, padding: '10px 14px',
                     color: 'var(--text-primary)', fontSize: 14,
-                    fontFamily: 'inherit',
                   }}
                 />
               </div>
@@ -124,7 +123,6 @@ export default function LoginPage({ onLogin }) {
                       background: 'var(--card-2)', border: '1px solid var(--border)',
                       borderRadius: 10, padding: '10px 38px 10px 14px',
                       color: 'var(--text-primary)', fontSize: 14,
-                      fontFamily: 'inherit',
                     }}
                   />
                   <Tooltip
@@ -158,11 +156,7 @@ export default function LoginPage({ onLogin }) {
                 </div>
               </div>
             </>
-          ) : (
-            <p className="mono" style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: 0, textAlign: 'center' }}>
-              Password login is disabled.
-            </p>
-          )}
+          ) : null}
 
           {error && (
             <p aria-live="polite" style={{ fontSize: 13, color: '#ff4444', margin: 0, textAlign: 'center' }}>{error}</p>
@@ -186,7 +180,7 @@ export default function LoginPage({ onLogin }) {
               style={{ justifyContent: 'center', gap: 8 }}
               onClick={handleOIDCLogin}
             >
-              <img src="/images/openid.png" alt="" aria-hidden="true" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+              <img src="/images/openid.png" alt="" aria-hidden="true" style={{ width: 20, height: 20, objectFit: 'contain' }} />
               Sign in with OIDC
             </button>
           )}

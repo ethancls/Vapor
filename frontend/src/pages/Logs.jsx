@@ -33,7 +33,8 @@ export default function Logs() {
     retry: false,
   })
 
-  const activity = activityQuery.data?.activity || []
+  const activityRows = activityQuery.data?.activity
+  const activity = useMemo(() => activityRows ?? [], [activityRows])
 
   const actionFilters = useMemo(() => {
     const actions = Array.from(

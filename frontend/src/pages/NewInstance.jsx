@@ -943,7 +943,6 @@ function LaunchModal({ payload, onClose }) {
 /* ── Main page ── */
 export default function NewInstance() {
   const navigate = useNavigate()
-  const qc = useQueryClient()
 
   const [form, setForm] = useState({
     name: '', image: '24.04', customImage: '',
@@ -1075,7 +1074,9 @@ export default function NewInstance() {
         image: form.image === 'custom' ? 'custom' : form.image,
         custom_image: form.image === 'custom' ? form.customImage : '',
       })
-    } catch { }
+    } catch (err) {
+      void err
+    }
   }
 
   function handleSubmit(e) {

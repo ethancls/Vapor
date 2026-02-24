@@ -2,7 +2,11 @@ import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate, useLocation 
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronLeft, TriangleAlert } from 'lucide-react'
 import Sidebar from './components/Sidebar'
+import MobileTopbar from './components/MobileTopbar'
+import MobileNavDrawer from './components/MobileNavDrawer'
+import GuidedTour from './components/GuidedTour'
 import { useStats } from './hooks/useStats'
+import useMediaQuery from './hooks/useMediaQuery'
 import Dashboard from './pages/Dashboard'
 import Instances from './pages/Instances'
 import NewInstance from './pages/NewInstance'
@@ -16,8 +20,26 @@ import Logs from './pages/Logs'
 import Settings from './pages/Settings'
 import LoginPage from './pages/LoginPage'
 import { Toaster } from 'sileo'
-import { ThemeProvider, useTheme } from './contexts/ThemeContext'
+import { ThemeProvider } from './contexts/ThemeContext'
+import { useTheme } from './contexts/useTheme'
 import { authMe, setOnUnauthorized } from './api/client'
+
+function routeTitle(pathname) {
+  if (!pathname) return ''
+  const path = pathname.split('?')[0].split('#')[0]
+  if (path === '/dashboard' || path === '/') return 'Dashboard'
+  if (path === '/instances') return 'Instances'
+  if (path === '/instances/new') return 'New Instance'
+  if (path.startsWith('/instances/')) return decodeURIComponent(path.slice('/instances/'.length)) || 'Instance'
+  if (path === '/snapshots') return 'Snapshots'
+  if (path === '/updates') return 'Updates'
+  if (path === '/networks') return 'Networks'
+  if (path === '/images') return 'Images'
+  if (path === '/users') return 'Users'
+  if (path === '/logs') return 'Activity'
+  if (path === '/settings') return 'Settings'
+  return ''
+}
 
 function ThemedToaster() {
   const { theme } = useTheme()
@@ -56,21 +78,24 @@ function NotFound() {
 function AppInner({ onLogout }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const isMobile = useMediaQuery('(max-width: 780px), ((pointer: coarse) and (max-height: 520px))')
   const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
+    try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch (err) { void err; return false }
   })
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const goNewInstance = useCallback(
     () => navigate('/instances/new', { state: { from: location.pathname } }),
     [navigate, location.pathname]
   )
 
   const toggleSidebar = useCallback(() => {
+    if (isMobile) return
     setCollapsed(c => {
       const next = !c
-      try { localStorage.setItem('sidebar-collapsed', String(next)) } catch {}
+      try { localStorage.setItem('sidebar-collapsed', String(next)) } catch (err) { void err }
       return next
     })
-  }, [])
+  }, [isMobile])
 
   const currentPath = location.pathname
   const explicitFrom = typeof location.state?.from === 'string' ? location.state.from : null
@@ -98,23 +123,12 @@ function AppInner({ onLogout }) {
     return 'Previous page'
   }
 
+  const pageTitle = routeTitle(location.pathname)
+
   // Document title
   useEffect(() => {
-    const path = location.pathname.split('?')[0].split('#')[0]
-    let label = ''
-    if (path === '/' || path === '/dashboard') label = 'Dashboard'
-    else if (path === '/instances') label = 'Instances'
-    else if (path === '/instances/new') label = 'New Instance'
-    else if (path.startsWith('/instances/')) label = decodeURIComponent(path.slice('/instances/'.length)) || 'Instance'
-    else if (path === '/snapshots') label = 'Snapshots'
-    else if (path === '/updates') label = 'Updates'
-    else if (path === '/networks') label = 'Networks'
-    else if (path === '/images') label = 'Images'
-    else if (path === '/users') label = 'Users'
-    else if (path === '/logs') label = 'Activity'
-    else if (path === '/settings') label = 'Settings'
-    document.title = label ? `Vapor | ${label}` : 'Vapor'
-  }, [location.pathname])
+    document.title = pageTitle ? `Vapor | ${pageTitle}` : 'Vapor'
+  }, [pageTitle])
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -127,6 +141,7 @@ function AppInner({ onLogout }) {
       if (tag === 'INPUT' && shortcutKey !== 'k') return
       if (!(e.metaKey || e.ctrlKey)) return
       if (shortcutKey === 'b') { e.preventDefault(); toggleSidebar() }
+      else if (shortcutKey === 'd') { e.preventDefault(); navigate('/dashboard', { state: { from: location.pathname } }) }
       else if (shortcutKey === 'n') { e.preventDefault(); goNewInstance() }
       else if (shortcutKey === 'i') { e.preventDefault(); navigate('/instances', { state: { from: location.pathname } }) }
       else if (shortcutKey === 's') { e.preventDefault(); navigate('/snapshots', { state: { from: location.pathname } }) }
@@ -138,56 +153,62 @@ function AppInner({ onLogout }) {
 
   const { data: stats, isError: statsError } = useStats()
   const daemonOk = !statsError && (stats?.daemon_running ?? true)
-
+  const sidebarCollapsed = !isMobile && collapsed
   return (
     <>
       <a href="#main-content" className="skip-link">Skip to Main Content</a>
-      <div className="layout">
-      <Sidebar
-        onNewInstance={goNewInstance}
-        collapsed={collapsed}
-        onToggle={toggleSidebar}
-        onLogout={onLogout}
-      />
+      <div className={`layout${isMobile ? ' layout-mobile' : ''}`}>
+      {!isMobile ? (
+        <Sidebar
+          onNewInstance={goNewInstance}
+          collapsed={sidebarCollapsed}
+          onToggle={toggleSidebar}
+          onLogout={onLogout}
+        />
+      ) : (
+        <>
+          <MobileTopbar
+            navOpen={mobileNavOpen}
+            onToggleNav={() => setMobileNavOpen((prev) => !prev)}
+            onNewInstance={goNewInstance}
+            title={pageTitle || 'Vapor'}
+            backLabel={backTarget ? routeLabel(backTarget) : ''}
+            onBack={backTarget ? () => navigate(backTarget, { state: { from: location.pathname } }) : null}
+          />
+          <MobileNavDrawer
+            open={mobileNavOpen}
+            onClose={() => setMobileNavOpen(false)}
+          >
+            <Sidebar
+              onNewInstance={goNewInstance}
+              collapsed={false}
+              onToggle={() => {}}
+              onLogout={onLogout}
+              isMobile
+              disableCollapse
+              onNavigate={() => setMobileNavOpen(false)}
+            />
+          </MobileNavDrawer>
+        </>
+      )}
 
-      <main id="main-content" className="main-content">
+      <main id="main-content" className={`main-content${isMobile ? ' main-content-mobile' : ''}`}>
         {!daemonOk && (
-          <div style={{ padding: '16px 32px 0' }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '10px 16px',
-              background: 'rgba(240,71,71,0.08)',
-              border: '1px solid rgba(240,71,71,0.2)',
-              borderRadius: 12,
-              color: '#f06565',
-              fontSize: 13, fontWeight: 600,
-            }}>
-              <TriangleAlert size={15} style={{ flexShrink: 0 }} />
+          <div className="daemon-alert-wrap">
+            <div className="daemon-alert">
+              <TriangleAlert size={15} className="daemon-alert-icon" />
               <span>Multipass daemon is not responding, please restart it</span>
             </div>
           </div>
         )}
-        {backTarget && (
-          <div className="global-back-link-wrap" style={{ padding: '6px 32px 0', marginBottom: '-12px', transform: 'translateY(6px)' }}>
+        {backTarget && !isMobile && (
+          <div className="global-back-link-wrap">
             <Link
               to={backTarget}
               state={{ from: location.pathname }}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '2px 0',
-                height: 'auto',
-                color: 'var(--accent-text)',
-                fontWeight: 700,
-                fontSize: 13,
-                letterSpacing: '0.01em',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
+              className="global-back-link"
             >
-              <ChevronLeft size={13} />
+              <ChevronLeft size={17} />
               Back to {routeLabel(backTarget)}
             </Link>
           </div>
@@ -208,6 +229,7 @@ function AppInner({ onLogout }) {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
+      <GuidedTour isMobile={isMobile} setMobileNavOpen={setMobileNavOpen} />
       </div>
     </>
   )

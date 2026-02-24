@@ -110,7 +110,7 @@ export default function ResourceChart({ instances = EMPTY_INSTANCES }) {
     })
 
     return Array.from(byTs.values()).sort((a, b) => new Date(a.tsRaw).getTime() - new Date(b.tsRaw).getTime())
-  }, [instances, isAll, metric, metric.key, multiQueries])
+  }, [instances, isAll, metric, multiQueries])
 
   const singleTickInterval = Math.max(0, Math.ceil(chartData.length / 6) - 1)
   const allTickInterval = Math.max(0, Math.ceil(allChartData.length / 6) - 1)

@@ -32,12 +32,16 @@ export default function Tooltip({ label, children, className = '', style }) {
 
   useLayoutEffect(() => {
     if (!open) return
-    updatePosition()
+    let frame = requestAnimationFrame(updatePosition)
 
-    const onViewportChange = () => updatePosition()
+    const onViewportChange = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(updatePosition)
+    }
     window.addEventListener('resize', onViewportChange)
     window.addEventListener('scroll', onViewportChange, true)
     return () => {
+      cancelAnimationFrame(frame)
       window.removeEventListener('resize', onViewportChange)
       window.removeEventListener('scroll', onViewportChange, true)
     }

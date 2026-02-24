@@ -1,6 +1,5 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-
-const ThemeContext = createContext(null)
+import { useEffect, useState } from 'react'
+import { ThemeContext } from './themeContextObject'
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
@@ -24,7 +23,7 @@ export function ThemeProvider({ children }) {
       themeColorMeta.setAttribute('content', resolved === 'dark' ? '#0a0a0a' : '#f7f8fb')
     }
     apply(theme)
-    try { localStorage.setItem('vapor-theme', theme) } catch {}
+    try { localStorage.setItem('vapor-theme', theme) } catch (err) { void err }
 
     if (theme === 'system') {
       const mq = window.matchMedia('(prefers-color-scheme: dark)')
@@ -39,8 +38,4 @@ export function ThemeProvider({ children }) {
       {children}
     </ThemeContext.Provider>
   )
-}
-
-export function useTheme() {
-  return useContext(ThemeContext)
 }

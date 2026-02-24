@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Power, PowerOff, Pause, Files, RotateCcw, CopyPlus, Trash2, Loader2, ChevronsUpDown, ChevronUp, ChevronDown, Key, CircleArrowUp, ArchiveRestore, ArrowUpRight } from 'lucide-react'
@@ -136,8 +136,6 @@ export default function InstancesTable({
   const [sshDialogInstance, setSshDialogInstance] = useState('')
   const [updatesDialogInstance, setUpdatesDialogInstance] = useState('')
   const [actionsCellWidth, setActionsCellWidth] = useState(240)
-  const timeoutsRef = useRef({})
-  const firstActionsCellRef = useRef(null)
   const qc = useQueryClient()
   const updatesItems = useQuery({
     queryKey: ['updates'],
@@ -148,30 +146,26 @@ export default function InstancesTable({
 
   // Watch WebSocket-updated instances to clear spinner when target state is reached
   useEffect(() => {
-    setLoading(prev => {
-      const entries = Object.entries(prev).filter(([, v]) => v)
-      if (!entries.length) return prev
-      let changed = false
-      const next = { ...prev }
-      for (const [name, action] of entries) {
-        const target = TARGET_STATE[action]
-        if (!target) continue
-        const inst = instances.find(i => i.name === name)
-        if (inst?.state === target) {
-          next[name] = null
-          changed = true
-          clearTimeout(timeoutsRef.current[name])
-          delete timeoutsRef.current[name]
+    const id = setTimeout(() => {
+      setLoading(prev => {
+        const entries = Object.entries(prev).filter(([, v]) => v)
+        if (!entries.length) return prev
+        let changed = false
+        const next = { ...prev }
+        for (const [name, action] of entries) {
+          const target = TARGET_STATE[action]
+          if (!target) continue
+          const inst = instances.find(i => i.name === name)
+          if (inst?.state === target) {
+            next[name] = null
+            changed = true
+          }
         }
-      }
-      return changed ? next : prev
-    })
+        return changed ? next : prev
+      })
+    }, 0)
+    return () => clearTimeout(id)
   }, [instances])
-
-  // Clean up safety timeouts on unmount
-  useEffect(() => {
-    return () => { Object.values(timeoutsRef.current).forEach(clearTimeout) }
-  }, [])
 
   function toggleSort(key) {
     if (!key) return
@@ -190,7 +184,7 @@ export default function InstancesTable({
   const firstRowName = sorted[0]?.name || ''
 
   useEffect(() => {
-    const cell = firstActionsCellRef.current
+    const cell = document.querySelector('.instances-table-actions-measure')
     if (!cell) return undefined
 
     const update = () => {
@@ -216,16 +210,12 @@ export default function InstancesTable({
         return
       }
       // Wait for WebSocket to push the new state, with a 30s safety fallback
-      clearTimeout(timeoutsRef.current[name])
-      timeoutsRef.current[name] = setTimeout(() => {
+      setTimeout(() => {
         setLoading(l => l[name] === actionKey ? { ...l, [name]: null } : l)
-        delete timeoutsRef.current[name]
       }, 30_000)
     } catch (err) {
       sileo.error({ title: err.message })
       setLoading(l => ({ ...l, [name]: null }))
-      clearTimeout(timeoutsRef.current[name])
-      delete timeoutsRef.current[name]
     }
   }
 
@@ -465,7 +455,7 @@ export default function InstancesTable({
                       <ResourceUsage used={disk?.used} total={disk?.total} compact mode="percent" label="DSK" showTooltip />
                     </div>
                   </td>
-                  <td ref={idx === 0 ? firstActionsCellRef : undefined} style={{ padding: '14px 18px' }}>
+                  <td className={idx === 0 ? 'instances-table-actions-measure' : ''} style={{ padding: '14px 18px' }}>
                     <div style={{ display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}>
                       {visibleActions.map((action) => (
                         <ActionBtn

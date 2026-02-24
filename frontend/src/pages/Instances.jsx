@@ -12,6 +12,12 @@ import InstancesCardsView from '../components/instances/InstancesCardsView'
 import { filterInstances, randomSnapshotName } from '../components/instances/instancesUtils'
 
 const COLS = ['Name', 'State', 'IPv4', 'Image', 'CPUs', 'RAM', 'Disk', 'Usage', 'Actions']
+const MOBILE_TABLE_BREAKPOINT = '(max-width: 900px)'
+
+function defaultInstancesViewMode() {
+  if (typeof window === 'undefined') return 'table'
+  return window.matchMedia(MOBILE_TABLE_BREAKPOINT).matches ? 'cards' : 'table'
+}
 
 function SkeletonTable() {
   return (
@@ -55,7 +61,7 @@ export default function Instances({ onNewInstance }) {
   const [stateFilter, setStateFilter] = useState('All')
   const [imageFilter, setImageFilter] = useState('All')
   const [query, setQuery] = useState('')
-  const [viewMode, setViewMode] = useState('table')
+  const [viewMode, setViewMode] = useState(defaultInstancesViewMode)
   const [selectedNames, setSelectedNames] = useState(new Set())
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
 

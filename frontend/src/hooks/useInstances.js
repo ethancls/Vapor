@@ -10,7 +10,7 @@ export function useInstances() {
   const connectDelayRef = useRef(null)
   const activeRef = useRef(false)
 
-  const connect = useCallback(() => {
+  const connect = useCallback(function connectSocket() {
     if (!activeRef.current) return
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const ws = new WebSocket(`${protocol}://${window.location.host}/ws/instances`)
@@ -23,13 +23,15 @@ export function useInstances() {
           setWsInstances(msg.data)
           queryClient.setQueryData(['instances'], { instances: msg.data })
         }
-      } catch {}
+      } catch (err) {
+        void err
+      }
     }
 
     ws.onclose = () => {
       if (!activeRef.current) return
       reconnectRef.current = setTimeout(() => {
-        connect()
+        connectSocket()
       }, 3000)
     }
 

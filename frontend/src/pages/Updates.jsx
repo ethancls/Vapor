@@ -110,7 +110,8 @@ export default function Updates() {
     refetchInterval: 60000,
   })
 
-  const items = updatesQuery.data?.updates || []
+  const updateRows = updatesQuery.data?.updates
+  const items = useMemo(() => updateRows ?? [], [updateRows])
 
   const counts = useMemo(() => ({
     all:       items.length,

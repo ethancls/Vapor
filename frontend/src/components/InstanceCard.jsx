@@ -48,8 +48,9 @@ export default function InstanceCard({ instance }) {
     if (!loading) return
     const target = TARGET_STATE[loading]
     if (target && instance.state === target) {
-      setLoading(null)
       clearTimeout(timeoutRef.current)
+      const id = setTimeout(() => setLoading(null), 0)
+      return () => clearTimeout(id)
     }
   }, [instance.state, loading])
 

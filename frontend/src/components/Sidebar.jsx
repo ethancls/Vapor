@@ -1,12 +1,13 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { version as APP_VERSION } from '../../package.json'
-import { Boxes, Plus, Sun, Moon, Monitor, ChevronLeft, Files, EthernetPort, CircleFadingArrowUp, Check, LogOut, Settings, Users, History, Layers2, LayoutGrid, Lock, Github } from 'lucide-react'
+import { Boxes, Plus, Sun, Moon, Monitor, ChevronDown, ChevronLeft, Files, EthernetPort, CircleFadingArrowUp, Check, LogOut, Settings, Users, History, Layers2, LayoutGrid, Lock, Github } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useTheme } from '../contexts/ThemeContext'
+import { useTheme } from '../contexts/useTheme'
 import { api, authLogout } from '../api/client'
 import ForbiddenActionModal from './ForbiddenActionModal'
 import { canAccessUsers, normalizeRole } from '../utils/rbac'
+import useShortcutPlatform from '../hooks/useShortcutPlatform'
 
 const NAV = [
   { group: null,        to: '/dashboard', Icon: LayoutGrid, label: 'Dashboard' },
@@ -25,6 +26,7 @@ const THEME_OPTIONS = [
   { value: 'light', label: 'Light', Icon: Sun },
   { value: 'system', label: 'System', Icon: Monitor },
 ]
+const MOBILE_THEME_OPTIONS = THEME_OPTIONS
 const THEME_ORDER = ['dark', 'light', 'system']
 
 function canAccessNavItem(role, to) {
@@ -39,29 +41,18 @@ function SidebarAvatar({ user, size = 30 }) {
   const fallback = String(user?.name || user?.login || '?').trim().charAt(0).toUpperCase() || '?'
 
   return (
-    <span style={{
-      width: size,
-      height: size,
-      borderRadius: 999,
-      overflow: 'hidden',
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--card-3)',
-      border: '1px solid var(--border)',
-      flexShrink: 0,
-    }}>
+    <span className="sidebar-avatar" style={{ '--avatar-size': `${size}px` }}>
       {avatar && !failed ? (
         <img
           src={avatar}
           alt={user?.login || 'avatar'}
           width={size}
           height={size}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          className="sidebar-avatar-image"
           onError={() => setFailed(true)}
         />
       ) : (
-        <span className="mono" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', lineHeight: 1 }}>
+        <span className="mono sidebar-avatar-fallback">
           {fallback}
         </span>
       )}
@@ -69,10 +60,21 @@ function SidebarAvatar({ user, size = 30 }) {
   )
 }
 
-export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }) {
+export default function Sidebar({
+  onNewInstance,
+  collapsed,
+  onToggle,
+  onLogout,
+  isMobile = false,
+  disableCollapse = false,
+  onNavigate,
+}) {
   const { theme, setTheme } = useTheme()
+  const { isApple } = useShortcutPlatform()
   const location = useLocation()
   const pathname = location.pathname
+  const effectiveCollapsed = !disableCollapse && collapsed
+  const collapseShortcut = isApple ? '⌘B' : 'Ctrl+B'
 
   const { data: updatesData } = useQuery({
     queryKey: ['updates'],
@@ -94,6 +96,8 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
   })
   const me = meData?.user || null
   const [forbiddenNav, setForbiddenNav] = useState(null)
+  const [mobileThemeOpen, setMobileThemeOpen] = useState(false)
+  const mobileThemeRef = useRef(null)
   const currentRole = normalizeRole(me?.role)
 
   const accountName = me?.name || me?.login || 'Account'
@@ -103,14 +107,25 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
     try {
       await authLogout()
     } finally {
+      onNavigate?.()
       onLogout?.()
     }
+  }
+
+  function handleNewInstance() {
+    onNavigate?.()
+    onNewInstance?.()
   }
 
   const activeTheme = useMemo(
     () => THEME_OPTIONS.find((option) => option.value === theme) || THEME_OPTIONS[0],
     [theme],
   )
+  const mobileActiveTheme = useMemo(
+    () => MOBILE_THEME_OPTIONS.find((option) => option.value === theme) || MOBILE_THEME_OPTIONS[0],
+    [theme],
+  )
+  const MobileActiveThemeIcon = mobileActiveTheme.Icon
   const navEntries = useMemo(
     () => NAV.map((item) => ({ ...item, allowed: canAccessNavItem(currentRole, item.to) })),
     [currentRole],
@@ -122,18 +137,40 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
     setTheme(nextTheme)
   }
 
+  useEffect(() => {
+    if (!isMobile || !mobileThemeOpen) return undefined
+
+    const onPointerDown = (event) => {
+      if (!mobileThemeRef.current?.contains(event.target)) setMobileThemeOpen(false)
+    }
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setMobileThemeOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isMobile, mobileThemeOpen])
+
   return (
     <aside
-      className={`sidebar sidebar-shell${collapsed ? ' collapsed' : ''}`}
+      className={`sidebar sidebar-shell${effectiveCollapsed ? ' collapsed' : ''}${isMobile ? ' sidebar-mobile' : ''}`}
     >
       {/* ── Logo row ── */}
       <div className="sidebar-header">
         <div
-          className={`sidebar-brand${collapsed ? ' is-collapsed' : ''}`}
-          onClick={collapsed ? onToggle : undefined}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (collapsed && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onToggle() } }}
+          className={`sidebar-brand${effectiveCollapsed ? ' is-collapsed' : ''}`}
+          onClick={effectiveCollapsed && !disableCollapse ? onToggle : undefined}
+          role={effectiveCollapsed && !disableCollapse ? 'button' : undefined}
+          tabIndex={effectiveCollapsed && !disableCollapse ? 0 : -1}
+          onKeyDown={(e) => {
+            if (effectiveCollapsed && !disableCollapse && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault()
+              onToggle()
+            }
+          }}
         >
           <img
             src="/vapor.png"
@@ -146,15 +183,15 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
           </div>
         </div>
 
-        {!collapsed && (
+        {!effectiveCollapsed && !disableCollapse && (
           <button
             type="button"
-            aria-label="Collapse sidebar (⌘B)"
-            title="Collapse sidebar (⌘B)"
+            aria-label={`Collapse sidebar (${collapseShortcut})`}
+            title={`Collapse sidebar (${collapseShortcut})`}
             onClick={onToggle}
             className="sidebar-collapse-toggle"
           >
-            <ChevronLeft size={22} color="var(--accent)" strokeWidth={3} />
+            <ChevronLeft size={22} color="var(--accent-fill)" strokeWidth={3} />
           </button>
         )}
       </div>
@@ -162,17 +199,27 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
       <nav className="sidebar-nav">
         {navEntries.map((item, idx) => {
           const { group, to, label, matchPaths, matchPrefix, allowed } = item
+          const tourId = to === '/dashboard'
+            ? 'nav-dashboard'
+            : to === '/instances'
+              ? 'nav-instances'
+              : to === '/networks'
+                ? 'nav-networks'
+                : to === '/settings'
+                  ? 'nav-settings'
+                  : undefined
           const isActive = (matchPaths && matchPaths.includes(pathname)) || (matchPrefix && pathname.startsWith(matchPrefix)) || pathname === to
+          const shouldPulseUpdatesIcon = to === '/updates' && outdatedCount > 0
           const prevGroup = idx > 0 ? navEntries[idx - 1].group : null
           const startsGroup = !!group && group !== prevGroup
           return (
             <div key={to} className="sidebar-nav-section">
-              {!collapsed && startsGroup && (
+              {!effectiveCollapsed && startsGroup && (
                 <p className="section-label sidebar-group-label">
                   {group}
                 </p>
               )}
-              {collapsed && startsGroup && (
+              {effectiveCollapsed && startsGroup && (
                 <div aria-hidden="true" className="sidebar-group-divider">
                   <span className="sidebar-group-divider-line" />
                 </div>
@@ -181,26 +228,21 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
                 <NavLink
                   to={to}
                   state={{ from: pathname }}
-                  title={collapsed ? label : undefined}
+                  data-tour={tourId}
+                  title={effectiveCollapsed ? label : undefined}
                   className={() => `nav-item${isActive ? ' active' : ''}`}
+                  onClick={() => onNavigate?.()}
                 >
-                  {/* Icon — with dot badge when collapsed and updates pending */}
-                  <span className="sidebar-nav-icon-wrap">
+                  {/* Icon — updates get fluid cyan fill animation */}
+                  <span className={`sidebar-nav-icon-wrap${shouldPulseUpdatesIcon ? ' sidebar-nav-icon-wrap-updates-pulse' : ''}`}>
                     <item.Icon size={22} />
-                    {to === '/updates' && collapsed && outdatedCount > 0 && (
-                      <span className="sidebar-nav-updates-dot" />
-                    )}
+                    {shouldPulseUpdatesIcon && <span className="sidebar-nav-updates-dot" aria-hidden="true" />}
                   </span>
 
-                  {/* Label — with count or check badge when expanded */}
+                  {/* Label — with health check badge when expanded */}
                   <span className="sidebar-label sidebar-nav-label">
                     {label}
-                    {to === '/updates' && !collapsed && outdatedCount > 0 && (
-                      <span className="sidebar-nav-updates-count mono">
-                        {outdatedCount}
-                      </span>
-                    )}
-                    {to === '/updates' && !collapsed && allCheckedAndOk && (
+                    {to === '/updates' && !effectiveCollapsed && allCheckedAndOk && (
                       <Check size={11} className="sidebar-nav-updates-check" />
                     )}
                   </span>
@@ -208,7 +250,8 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
               ) : (
                 <button
                   type="button"
-                  title={collapsed ? `${label} (Restricted)` : undefined}
+                  data-tour={tourId}
+                  title={effectiveCollapsed ? `${label} (Restricted)` : undefined}
                   className="nav-item nav-item-locked"
                   onClick={() => setForbiddenNav({
                     title: 'Action Not Permitted',
@@ -220,7 +263,7 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
                   </span>
                   <span className="sidebar-label sidebar-nav-label">
                     {label}
-                    {!collapsed && <Lock size={11} className="sidebar-nav-lock" />}
+                    {!effectiveCollapsed && <Lock size={11} className="sidebar-nav-lock" />}
                   </span>
                 </button>
               )}
@@ -231,75 +274,120 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
 
       <div className="sidebar-fill" />
 
-      {/* New instance */}
-      {collapsed ? (
-        <button
-          type="button"
-          aria-label="New Instance"
-          title="New Instance"
-          onClick={onNewInstance}
-          className="sidebar-new-instance-button"
-        >
-          <Plus size={16} color="#0a0a0a" />
-        </button>
-      ) : (
-        <button
-          className="btn-accent"
-          style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
-          onClick={onNewInstance}
-        >
-          <Plus size={13} /> New Instance
-        </button>
+      {/* New instance (desktop only) */}
+      {!isMobile && (
+        effectiveCollapsed ? (
+          <button
+            type="button"
+            aria-label="New Instance"
+            title="New Instance"
+            onClick={handleNewInstance}
+            className="sidebar-new-instance-button"
+          >
+            <Plus size={16} color="#0a0a0a" />
+          </button>
+        ) : (
+          <button
+            className="btn-accent sidebar-new-instance-button-expanded"
+            onClick={handleNewInstance}
+          >
+            <Plus size={13} /> New Instance
+          </button>
+        )
       )}
 
       {/* Theme */}
-      <div className={`sidebar-footer${collapsed ? ' is-collapsed' : ''}`}>
-        {!collapsed ? (
-          <div className="sidebar-theme-picker" role="group" aria-label="Theme">
-            {THEME_OPTIONS.map((option) => {
-              const isActive = theme === option.value
-              const Icon = option.Icon
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setTheme(option.value)}
-                  className={`sidebar-theme-picker-option${isActive ? ' is-active' : ''}`}
-                  aria-label={`Set ${option.label} theme`}
-                  aria-pressed={isActive}
-                >
-                  <Icon size={16} />
-                </button>
-              )
-            })}
-          </div>
-        ) : (
-          <button
-            type="button"
-            aria-label="Switch theme"
-            title={`Theme: ${activeTheme.label}`}
-            className="sidebar-theme-cycle is-collapsed"
-            onClick={cycleTheme}
-          >
-            <span className="sidebar-theme-cycle-icon">
-              <activeTheme.Icon size={18} />
-            </span>
-          </button>
+      <div className={`sidebar-footer${effectiveCollapsed ? ' is-collapsed' : ''}`}>
+        {!isMobile && (
+          !effectiveCollapsed ? (
+            <div className="sidebar-theme-picker" role="group" aria-label="Theme">
+              {THEME_OPTIONS.map((option) => {
+                const isActive = theme === option.value
+                const Icon = option.Icon
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setTheme(option.value)}
+                    className={`sidebar-theme-picker-option${isActive ? ' is-active' : ''}`}
+                    aria-label={`Set ${option.label} theme`}
+                    aria-pressed={isActive}
+                  >
+                    <Icon size={16} />
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <button
+              type="button"
+              aria-label="Switch theme"
+              title={`Theme: ${activeTheme.label}`}
+              className="sidebar-theme-cycle is-collapsed"
+              onClick={cycleTheme}
+            >
+              <span className="sidebar-theme-cycle-icon">
+                <activeTheme.Icon size={18} />
+              </span>
+            </button>
+          )
         )}
 
-        {!collapsed ? (
+        {!effectiveCollapsed ? (
           <div className="sidebar-user-row">
-            <SidebarAvatar key={me?.avatar_url || ''} user={me} size={34} />
+            <SidebarAvatar key={me?.avatar_url || ''} user={me} size={isMobile ? 30 : 34} />
             <div className="sidebar-user-meta">
               <p className="sidebar-user-name">{accountName}</p>
               <p className="mono sidebar-user-login">
                 @{accountLogin}
               </p>
             </div>
+            {isMobile && (
+              <div className="sidebar-mobile-theme-dropdown" ref={mobileThemeRef}>
+                <button
+                  type="button"
+                  className="sidebar-mobile-theme-trigger"
+                  data-tour="mobile-theme-toggle"
+                  aria-label="Theme options"
+                  aria-haspopup="menu"
+                  aria-expanded={mobileThemeOpen}
+                  onClick={() => setMobileThemeOpen((open) => !open)}
+                >
+                  <MobileActiveThemeIcon size={14} />
+                  <ChevronDown size={12} />
+                </button>
+                {mobileThemeOpen && (
+                  <div className="sidebar-mobile-theme-menu" role="menu" aria-label="Theme">
+                    {MOBILE_THEME_OPTIONS.map((option) => {
+                      const Icon = option.Icon
+                      const isActive = option.value === theme
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`sidebar-mobile-theme-option${isActive ? ' is-active' : ''}`}
+                          title={option.label}
+                          aria-label={option.label}
+                          role="menuitemradio"
+                          aria-checked={isActive}
+                          onClick={() => {
+                            setTheme(option.value)
+                            setMobileThemeOpen(false)
+                          }}
+                        >
+                          <Icon size={14} />
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             <button
               type="button"
               aria-label="Sign out"
               title="Sign out"
+              data-tour="sidebar-logout"
               onClick={handleSignOut}
               className="sidebar-logout-button"
             >
@@ -318,7 +406,7 @@ export default function Sidebar({ onNewInstance, collapsed, onToggle, onLogout }
           </button>
         )}
 
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <div className="sidebar-footer-version-row">
             <p className="mono sidebar-footer-version-text">
               v{APP_VERSION}

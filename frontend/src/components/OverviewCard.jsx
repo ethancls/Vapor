@@ -1,5 +1,4 @@
 import { useStats } from '../hooks/useStats'
-import { ArrowUpRight } from 'lucide-react'
 
 function fmt(bytes) {
   if (!bytes) return '0'
@@ -10,7 +9,7 @@ function fmt(bytes) {
   return `${(bytes / 1024).toFixed(0)} KB`
 }
 
-export default function OverviewCard({ onNewInstance }) {
+export default function OverviewCard() {
   const { data: stats, isLoading } = useStats()
 
   const items = [
@@ -23,54 +22,29 @@ export default function OverviewCard({ onNewInstance }) {
   ]
 
   return (
-    <div style={{
-      background: 'var(--accent-fill)',
-      borderRadius: 'var(--r-card)',
-      padding: 24,
-      position: 'relative',
-      overflow: 'hidden',
-      minWidth: 0,
-    }}>
+    <div className="dashboard-overview-card">
       {/* Decorative blobs */}
-      <div style={{ position: 'absolute', top: -50, right: -50, width: 180, height: 180, borderRadius: '50%', background: 'rgba(0,0,0,0.07)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: -40, left: -30, width: 140, height: 140, borderRadius: '50%', background: 'rgba(0,0,0,0.05)', pointerEvents: 'none' }} />
+      <div className="dashboard-overview-blob dashboard-overview-blob--top" />
+      <div className="dashboard-overview-blob dashboard-overview-blob--bottom" />
 
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(0,0,0,0.45)', marginBottom: 4 }}>Overview</p>
-        <h2 style={{ fontFamily: 'Syne', fontWeight: 800, fontSize: 22, color: '#0a0a0a', marginBottom: 20, letterSpacing: '-0.3px', lineHeight: 1.1 }}>
+      <div className="dashboard-overview-content">
+        <p className="dashboard-overview-eyebrow">Overview</p>
+        <h2 className="dashboard-overview-title">
           Infrastructure
         </h2>
 
-        <div className="overview-stats-grid" style={{
-          background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(8px)',
-          borderRadius: 13, padding: '16px 18px', marginBottom: 16,
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 20px',
-        }}>
+        <div className="overview-stats-grid dashboard-overview-stats">
           {items.map(({ label, value }) => (
-            <div key={label}>
-              <p style={{ fontSize: 10.5, color: '#666', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 3 }}>{label}</p>
+            <div key={label} className="dashboard-overview-stat">
+              <p className="dashboard-overview-stat-label">{label}</p>
               {isLoading ? (
                 <div style={{ width: '60%', height: 18, borderRadius: 4, background: 'rgba(181,242,61,0.15)', animation: 'skeleton-shimmer 2s ease-in-out infinite', backgroundSize: '200% auto', backgroundImage: 'linear-gradient(90deg, rgba(181,242,61,0.1) 25%, rgba(181,242,61,0.22) 50%, rgba(181,242,61,0.1) 75%)' }} />
               ) : (
-                <p className="mono" style={{ fontSize: 19, fontWeight: 600, color: 'var(--accent)', lineHeight: 1 }}>{value}</p>
+                <p className="mono dashboard-overview-stat-value">{value}</p>
               )}
             </div>
           ))}
         </div>
-
-        <button onClick={onNewInstance} style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'rgba(0,0,0,0.82)', color: 'var(--accent)',
-          border: 'none', borderRadius: 9, padding: '8px 14px',
-          fontFamily: 'Syne', fontWeight: 700, fontSize: 12.5,
-          cursor: 'pointer', marginLeft: 'auto',
-          transition: 'background 0.15s',
-        }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.92)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.82)'}
-        >
-          Launch <ArrowUpRight size={11} />
-        </button>
       </div>
     </div>
   )

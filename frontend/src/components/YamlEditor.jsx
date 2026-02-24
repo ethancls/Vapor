@@ -4,7 +4,7 @@ import { yaml as langYaml } from '@codemirror/lang-yaml'
 import { linter, lintGutter } from '@codemirror/lint'
 import { oneDark } from '@codemirror/theme-one-dark'
 import jsyaml from 'js-yaml'
-import { useTheme } from '../contexts/ThemeContext'
+import { useTheme } from '../contexts/useTheme'
 
 /* ── YAML linter ── */
 const yamlLintSource = linter(view => {

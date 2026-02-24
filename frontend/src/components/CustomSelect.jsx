@@ -57,8 +57,11 @@ export default function CustomSelect({
 
   useEffect(() => {
     if (disabled && open) {
-      setOpen(false)
-      setQuery('')
+      const id = setTimeout(() => {
+        setOpen(false)
+        setQuery('')
+      }, 0)
+      return () => clearTimeout(id)
     }
   }, [disabled, open])
 

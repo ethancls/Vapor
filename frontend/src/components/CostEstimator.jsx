@@ -38,40 +38,40 @@ export default function CostEstimator({ instances }) {
   const fmtY = v => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : v >= 1 ? `$${v.toFixed(0)}` : `$${v.toFixed(2)}`
 
   return (
-    <div className="card" style={{ padding: 22 }}>
+    <div className="card dashboard-cost-card">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="dashboard-cost-header">
+        <div className="dashboard-cost-header-main">
           <p className="section-title">Cost Estimator</p>
           <a
             href="https://aws.amazon.com/ec2/pricing/on-demand/"
             target="_blank" rel="noreferrer"
-            style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'none', transition: 'color 0.15s', lineHeight: 1 }}
+            className="dashboard-cost-link"
             onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)' }}
             onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)' }}
           >
             EC2 prices ↗
           </a>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <p className="mono" style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
+        <div className="dashboard-cost-summary">
+          <p className="mono dashboard-cost-monthly">
             ${(hourly * 730).toFixed(4)}
           </p>
-          <p style={{ fontSize: 10.5, color: 'var(--text-secondary)', marginTop: 3 }}>/month est.</p>
+          <p className="dashboard-cost-monthly-meta">/month est.</p>
         </div>
       </div>
 
       {/* Breakdown legend */}
-      <div style={{ display: 'flex', gap: 18, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div className="dashboard-cost-breakdown">
         {[
           { label: `${totalCpus} vCPU`,                cost: cpuCostHr,  color: '#b5f23d' },
           { label: `${totalRamGb.toFixed(1)} GB RAM`,  cost: ramCostHr,  color: '#60a5fa' },
           { label: `${totalDiskGb.toFixed(0)} GB Disk`,cost: diskCostHr, color: '#a78bfa' },
         ].map(({ label, cost, color }) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <div style={{ width: 7, height: 7, borderRadius: 2, background: color, flexShrink: 0 }} />
-            <span className="mono" style={{ fontSize: 12, color: 'var(--text-primary)' }}>{label}</span>
-            <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>${cost.toFixed(4)}/hr</span>
+          <div key={label} className="dashboard-cost-breakdown-item">
+            <div className="dashboard-cost-breakdown-dot" style={{ background: color }} />
+            <span className="mono dashboard-cost-breakdown-label">{label}</span>
+            <span className="mono dashboard-cost-breakdown-price">${cost.toFixed(4)}/hr</span>
           </div>
         ))}
       </div>

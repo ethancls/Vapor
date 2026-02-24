@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
 	"github.com/user/vapor/internal/api"
 	"github.com/user/vapor/internal/config"
 	"github.com/user/vapor/internal/multipass"
@@ -130,5 +129,5 @@ func main() {
 	cancel()
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutCancel()
-	httpSrv.Shutdown(shutCtx) //nolint:errcheck
+	httpSrv.Shutdown(shutCtx)
 }
