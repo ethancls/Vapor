@@ -11,7 +11,7 @@ export default function InstancesCardsView({ instances = EMPTY_ARRAY, selectedNa
         background: 'var(--card-1)', borderRadius: 'var(--r-card)', border: '1px dashed var(--border)',
         padding: '32px 24px', textAlign: 'center',
       }}>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>No instances in this view</p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>No instances in this view</p>
       </div>
     )
   }

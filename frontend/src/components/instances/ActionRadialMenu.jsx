@@ -47,7 +47,7 @@ export default function ActionRadialMenu({ actions = EMPTY_ACTIONS }) {
   if (!enabled.length) return null
 
   return (
-    <div ref={rootRef} style={{ position: 'relative', width: 34, height: 34, flexShrink: 0 }}>
+    <div ref={rootRef} style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
       <Tooltip label={triggerLabel}>
         <button
           ref={btnRef}
@@ -55,7 +55,7 @@ export default function ActionRadialMenu({ actions = EMPTY_ACTIONS }) {
           aria-label={triggerLabel}
           onClick={handleToggle}
           style={{
-            width: 34, height: 34, borderRadius: 999,
+            width: 40, height: 40, borderRadius: 999,
             border: 'none',
             background: open ? 'var(--accent-dim)' : 'transparent',
             color: open ? 'var(--accent)' : 'var(--text-secondary)',
@@ -65,7 +65,7 @@ export default function ActionRadialMenu({ actions = EMPTY_ACTIONS }) {
             position: 'relative', zIndex: 5,
           }}
         >
-          <Grip size={14} />
+          <Grip size={16} />
         </button>
       </Tooltip>
 
@@ -102,7 +102,7 @@ export default function ActionRadialMenu({ actions = EMPTY_ACTIONS }) {
                 opacity: action.disabled ? 0.45 : 1,
                 cursor: action.disabled ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 8,
-                fontSize: 12, fontWeight: 600, padding: '8px 10px',
+                fontSize: 13, fontWeight: 600, padding: '9px 11px',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}

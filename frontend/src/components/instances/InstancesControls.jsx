@@ -15,34 +15,35 @@ export default function InstancesControls({
   counts,
 }) {
   return (
-    <div className="instances-controls" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+    <div className="instances-controls" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
       <div className="instances-state-filters" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: '1 1 320px' }}>
         {STATE_FILTERS.map((state) => (
           <button
             key={state}
             onClick={() => onStateFilterChange(state)}
             className={`filter-pill${stateFilter === state ? ' active' : ''}`}
+            style={{ minHeight: 40, padding: '0 15px', fontSize: 14, gap: 8 }}
           >
             {state}
-            <span className="pill-count">{counts?.[state] ?? 0}</span>
+            <span className="pill-count" style={{ minWidth: 22, height: 22, fontSize: 12.5 }}>{counts?.[state] ?? 0}</span>
           </button>
         ))}
       </div>
 
       <div className="instances-controls-right" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginLeft: 'auto', minWidth: 0 }}>
         <div className="instances-search-control" style={{
-          display: 'flex', alignItems: 'center', gap: 7,
+          display: 'flex', alignItems: 'center', gap: 8,
           background: 'var(--card-2)', border: '1px solid var(--border)',
-          borderRadius: 'var(--r-sm)', padding: '0 10px', height: 38, width: 'clamp(150px, 22vw, 220px)',
+          borderRadius: 'var(--r-sm)', padding: '0 12px', height: 42, width: 'clamp(170px, 24vw, 250px)',
         }}>
-          <Search size={12} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+          <Search size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
           <input
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Search instances..."
             style={{
               background: 'none', border: 'none', outline: 'none',
-              color: 'var(--text-primary)', fontFamily: 'IBM Plex Mono', fontSize: 13,
+              color: 'var(--text-primary)', fontFamily: 'IBM Plex Mono', fontSize: 14,
               width: '100%',
             }}
           />
@@ -51,10 +52,10 @@ export default function InstancesControls({
               onClick={() => onQueryChange('')}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                color: 'var(--text-secondary)', display: 'flex', alignItems: 'center',
+                color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', width: 22, height: 22, justifyContent: 'center',
               }}
             >
-              <X size={11} />
+              <X size={13} />
             </button>
           )}
         </div>
@@ -64,7 +65,7 @@ export default function InstancesControls({
           onChange={onImageFilterChange}
           options={imageOptions}
           searchable
-          controlHeight={38}
+          controlHeight={42}
           style={{ minWidth: 140, width: 'clamp(160px, 24vw, 240px)', flex: '0 1 auto' }}
         />
 
@@ -74,7 +75,7 @@ export default function InstancesControls({
           border: '1px solid var(--border)',
           borderRadius: 'var(--r-sm)',
           overflow: 'hidden',
-          height: 38,
+          height: 42,
         }}>
           <button
             type="button"
@@ -87,10 +88,10 @@ export default function InstancesControls({
               height: '100%',
               background: viewMode === 'table' ? 'var(--accent-dim)' : 'transparent',
               color: viewMode === 'table' ? 'var(--accent)' : 'var(--text-secondary)',
-              padding: '0 12px',
+              padding: '0 14px',
             }}
           >
-            <Table2 size={13} />
+            <Table2 size={15} />
           </button>
           <button
             type="button"
@@ -103,10 +104,10 @@ export default function InstancesControls({
               height: '100%',
               background: viewMode === 'cards' ? 'var(--accent-dim)' : 'transparent',
               color: viewMode === 'cards' ? 'var(--accent)' : 'var(--text-secondary)',
-              padding: '0 12px',
+              padding: '0 14px',
             }}
           >
-            <Grid3X3 size={13} />
+            <Grid3X3 size={15} />
           </button>
         </div>
       </div>

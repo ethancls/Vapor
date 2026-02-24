@@ -165,7 +165,7 @@ export default function Instances({ onNewInstance }) {
         </div>
         <div className="instances-header-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button className="btn-accent" onClick={onNewInstance}>
-            <Plus size={13} /> New Instance
+            <Plus size={15} /> New Instance
           </button>
         </div>
       </div>

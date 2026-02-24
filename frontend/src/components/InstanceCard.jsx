@@ -119,7 +119,7 @@ export default function InstanceCard({ instance }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-              <p className="mono" style={{ fontWeight: 600, fontSize: 13, lineHeight: 1, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <p className="mono" style={{ fontWeight: 600, fontSize: 14, lineHeight: 1, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {name}
               </p>
               <button
@@ -138,7 +138,7 @@ export default function InstanceCard({ instance }) {
                 onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)' }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
               >
-                <ArrowUpRight size={13} />
+                <ArrowUpRight size={14} />
               </button>
             </div>
             <InstanceStateBadge state={state} />
@@ -149,7 +149,7 @@ export default function InstanceCard({ instance }) {
             onClick={handleToggleMenu}
             style={{
               background: 'var(--card-2)', border: '1px solid var(--border)',
-              borderRadius: 8, padding: '5px 6px', cursor: 'pointer',
+              borderRadius: 9, padding: '6px 7px', cursor: 'pointer',
               color: 'var(--text-secondary)', display: 'flex', alignItems: 'center',
               flexShrink: 0, marginLeft: 8,
               transition: 'border-color 0.13s, color 0.13s',
@@ -157,7 +157,7 @@ export default function InstanceCard({ instance }) {
             onMouseEnter={e => { e.currentTarget.style.borderColor='var(--border-hover)'; e.currentTarget.style.color='var(--text-primary)' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.color='var(--text-secondary)' }}
           >
-            {loading ? <Loader2 size={14} style={{ animation: 'spin 0.7s linear infinite' }} /> : <Grip size={14} />}
+            {loading ? <Loader2 size={15} style={{ animation: 'spin 0.7s linear infinite' }} /> : <Grip size={15} />}
           </button>
         </div>
 
@@ -184,7 +184,7 @@ export default function InstanceCard({ instance }) {
           ))}
         </div>
 
-        <p className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1 }}>
+        <p className="mono" style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.1 }}>
           {image || '—'}
         </p>
       </div>
@@ -204,45 +204,45 @@ export default function InstanceCard({ instance }) {
           }}
         >
           {state !== 'Running' && state !== 'Deleted' && (
-            <MenuItem icon={<Play size={14} />} label="Start" color="var(--running)"
+            <MenuItem icon={<Play size={16} />} label="Start" color="var(--running)"
               disabled={!!loading}
               onClick={() => doAction('start', () => api.startInstance(name), `Started ${name}`)} />
           )}
           {state === 'Running' && (
-            <MenuItem icon={<Square size={14} />} label="Stop" color="var(--stopped)"
+            <MenuItem icon={<Square size={16} />} label="Stop" color="var(--stopped)"
               disabled={!!loading}
               onClick={() => doAction('stop', () => api.stopInstance(name), `Stopped ${name}`)} />
           )}
           {state === 'Running' && (
-            <MenuItem icon={<Pause size={14} />} label="Suspend" color="var(--suspended)"
+            <MenuItem icon={<Pause size={16} />} label="Suspend" color="var(--suspended)"
               disabled={!!loading}
               onClick={() => doAction('suspend', () => api.suspendInstance(name), `Suspended ${name}`)} />
           )}
           {state === 'Running' && (
-            <MenuItem icon={<RotateCcw size={14} />} label="Restart" color="#60a5fa"
+            <MenuItem icon={<RotateCcw size={16} />} label="Restart" color="#60a5fa"
               disabled={!!loading}
               onClick={() => doAction('restart', () => api.restartInstance(name), `Restarted ${name}`)} />
           )}
           <div style={{ height: 1, background: 'var(--border)', margin: '4px 6px' }} />
-          <MenuItem icon={<Key size={14} />} label="SSH Access" color="#facc15"
+          <MenuItem icon={<Key size={16} />} label="SSH Access" color="#facc15"
             disabled={!!loading || state !== 'Running'}
             onClick={() => { setMenuOpen(false); setSshDialogOpen(true) }} />
-          <MenuItem icon={<CircleArrowUp size={14} />} label="Updates" color={updatesColor}
+          <MenuItem icon={<CircleArrowUp size={16} />} label="Updates" color={updatesColor}
             disabled={!!loading || state !== 'Running' || !hasPendingUpdates}
             onClick={() => { setMenuOpen(false); setUpdatesDialogOpen(true) }} />
-          <MenuItem icon={<Camera size={14} />} label="Snapshot" color="#a78bfa"
+          <MenuItem icon={<Camera size={16} />} label="Snapshot" color="#a78bfa"
             disabled={!!loading || state !== 'Stopped'}
             onClick={() => doAction('snapshot', () => api.createSnapshot(name, randomSnapshotName(name)), `Snapshot created`)} />
-          <MenuItem icon={<CopyPlus size={14} />} label="Clone" color="#34d399"
+          <MenuItem icon={<CopyPlus size={16} />} label="Clone" color="#34d399"
             disabled={!!loading || state !== 'Stopped'}
             onClick={() => { setMenuOpen(false); setCloneDialog({ source: name, suggested: `${name}-clone` }) }} />
           {state === 'Deleted' && (
-            <MenuItem icon={<ArchiveRestore size={14} />} label="Recover" color="#34d399"
+            <MenuItem icon={<ArchiveRestore size={16} />} label="Recover" color="#34d399"
               disabled={!!loading}
               onClick={() => doAction('recover', () => api.recoverInstance(name), `Recovered ${name}`)} />
           )}
           <div style={{ height: 1, background: 'var(--border)', margin: '4px 6px' }} />
-          <MenuItem icon={<Trash2 size={14} />} label={state === 'Deleted' ? 'Purge' : 'Delete'} color="var(--stopped)"
+          <MenuItem icon={<Trash2 size={16} />} label={state === 'Deleted' ? 'Purge' : 'Delete'} color="var(--stopped)"
             disabled={!!loading}
             onClick={() => { setMenuOpen(false); setConfirmDelete(true) }} />
         </div>,
@@ -293,7 +293,7 @@ function MenuItem({ icon, label, color, onClick, disabled }) {
         display: 'flex', alignItems: 'center', gap: 8, width: '100%',
         background: 'none', border: 'none', padding: '8px 11px',
         color: disabled ? 'var(--text-muted)' : (color || 'var(--text-primary)'),
-        fontSize: 13, cursor: disabled ? 'not-allowed' : 'pointer',
+        fontSize: 14, cursor: disabled ? 'not-allowed' : 'pointer',
         borderRadius: 8, fontFamily: 'Syne', fontWeight: 600,
         opacity: disabled ? 0.45 : 1,
         transition: 'background 0.1s', lineHeight: 1,

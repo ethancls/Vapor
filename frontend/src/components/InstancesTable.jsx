@@ -43,7 +43,7 @@ const TARGET_STATE = {
 const EMPTY_INSTANCES = []
 const EMPTY_NAMES = new Set()
 
-const ACTION_BUTTON_SIZE = 40
+const ACTION_BUTTON_SIZE = 44
 const ACTION_BUTTON_GAP = 5
 const ACTION_CELL_HORIZONTAL_PADDING = 36
 const MAX_VISIBLE_ACTION_SLOTS = 4 // Grip included
@@ -112,7 +112,7 @@ function ActionBtn({ icon, color, label, onClick, isLoading = false, disabled = 
         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
       >
         {isLoading
-          ? <Loader2 size={14} style={{ animation: 'spin 0.7s linear infinite' }} />
+          ? <Loader2 size={15} style={{ animation: 'spin 0.7s linear infinite' }} />
           : icon
         }
       </button>
@@ -243,7 +243,7 @@ export default function InstancesTable({
                     style={{
                       padding: '12px 18px',
                       textAlign: centered ? 'center' : 'left',
-                      fontSize: 12, fontWeight: 700, color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+                      fontSize: 12.5, fontWeight: 700, color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
                       textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap',
                       cursor: key ? 'pointer' : 'default', userSelect: 'none',
                     }}
@@ -272,7 +272,7 @@ export default function InstancesTable({
                         }}
                       >
                         {label}
-                        <SortIcon size={11} style={{ opacity: active ? 1 : 0.4, flexShrink: 0 }} />
+                        <SortIcon size={13} style={{ opacity: active ? 1 : 0.4, flexShrink: 0 }} />
                       </button>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: centered ? 'center' : 'flex-start' }}>
@@ -287,7 +287,7 @@ export default function InstancesTable({
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={10} style={{ padding: '36px 18px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+                <td colSpan={10} style={{ padding: '36px 18px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
                   {searchQuery.trim() ? `No results for "${searchQuery}"` : 'No instances'}
                 </td>
               </tr>
@@ -409,7 +409,7 @@ export default function InstancesTable({
                         to={`/instances/${encodeURIComponent(name)}`}
                         state={{ from: location.pathname }}
                         className="mono"
-                        style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                       >
                         {name}
                       </Link>
@@ -427,25 +427,25 @@ export default function InstancesTable({
                         onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)' }}
                         onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
                       >
-                        <ArrowUpRight size={13} />
+                        <ArrowUpRight size={14} />
                       </Link>
                     </div>
                   </td>
                   <td style={{ padding: '14px 18px' }}><InstanceStateBadge state={state} /></td>
                   <td style={{ padding: '14px 18px' }}><CopyIP ips={ipv4} /></td>
                   <td style={{ padding: '14px 18px' }}>
-                    <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{image || '—'}</span>
+                    <span className="mono" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{image || '—'}</span>
                   </td>
                   <td style={{ padding: '14px 18px', textAlign: 'center' }}>
-                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{cpus || '—'}</span>
+                    <span className="mono" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{cpus || '—'}</span>
                   </td>
                   <td style={{ padding: '14px 18px', textAlign: 'center' }}>
-                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    <span className="mono" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                       {fmtResource(memory?.total)}
                     </span>
                   </td>
                   <td style={{ padding: '14px 18px', textAlign: 'center' }}>
-                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    <span className="mono" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                       {fmtResource(disk?.total)}
                     </span>
                   </td>
@@ -460,7 +460,7 @@ export default function InstancesTable({
                       {visibleActions.map((action) => (
                         <ActionBtn
                           key={action.key}
-                          icon={<action.Icon size={14} />}
+                          icon={<action.Icon size={15} />}
                           color={action.color}
                           label={action.label}
                           isLoading={action.isLoading}
@@ -472,7 +472,7 @@ export default function InstancesTable({
                         <ActionRadialMenu
                           actions={overflowActions.map((action) => ({
                             label: action.label,
-                            icon: <action.Icon size={14} />,
+                            icon: <action.Icon size={15} />,
                             color: action.color,
                             onClick: action.onClick,
                             disabled: action.disabled || action.isLoading,

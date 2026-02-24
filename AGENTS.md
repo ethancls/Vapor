@@ -80,6 +80,16 @@ After refactoring or implementing changes:
 
 Don't leave corpses. Don't delete without asking.
 </behavior>
+
+<behavior name="checkpoint_before_large_changes" priority="high">
+Before any large or risky modification, create a rollback checkpoint first:
+
+1. Commit the current working state
+2. Push the commit to the remote branch
+3. Then begin the large modification
+
+If the branch cannot be pushed (no remote, auth issue, or network issue), stop and report the blocker before continuing.
+</behavior>
 </core_behaviors>
 
 <leverage_patterns>

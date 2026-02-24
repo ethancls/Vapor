@@ -19,6 +19,13 @@ function usageColor(pct) {
   return 'var(--accent)'
 }
 
+function usageTone(pct, isZeroUsage) {
+  if (isZeroUsage || pct == null) return 'muted'
+  if (pct >= 90) return 'danger'
+  if (pct >= 75) return 'warn'
+  return 'accent'
+}
+
 function formatBytes(bytes, { compact = false, zeroAsDash = false } = {}) {
   if (bytes == null || Number.isNaN(Number(bytes))) return '—'
   const n = Number(bytes)
@@ -30,18 +37,18 @@ function formatBytes(bytes, { compact = false, zeroAsDash = false } = {}) {
 }
 
 function UsageDonut({ pct, color, compact, sizeOverride = null, strokeOverride = null }) {
-  const size = sizeOverride ?? (compact ? 18 : 20)
-  const stroke = strokeOverride ?? (compact ? 2.6 : 2.8)
+  const size = sizeOverride ?? (compact ? 20 : 20)
+  const stroke = strokeOverride ?? (compact ? 2.8 : 2.8)
   const radius = (size - stroke) / 2
   const circumference = 2 * Math.PI * radius
   const progress = ((pct ?? 0) / 100) * circumference
 
   return (
     <svg
+      className="usage-donut"
       width={size}
       height={size}
       viewBox={`0 0 ${size} ${size}`}
-      style={{ flexShrink: 0, transform: 'rotate(-90deg)' }}
       aria-hidden="true"
     >
       <circle
@@ -83,64 +90,34 @@ export default function ResourceUsage({
   const pctLabel = fmtPct(pct)
   const isZeroUsage = safeUsed <= 0
   const color = isZeroUsage ? 'var(--text-muted)' : usageColor(pct)
+  const tone = usageTone(pct, isZeroUsage)
   const usedLabel = formatBytes(safeUsed, { compact })
   const totalLabel = formatBytes(safeTotal, { compact, zeroAsDash: true })
   const hasData = safeUsed > 0 || safeTotal > 0
-  const segmentWidth = compact ? '6ch' : '9.5ch'
   const tooltipLabel = `${label ? `${label}: ` : ''}${formatBytes(safeUsed, { compact: true })} / ${formatBytes(safeTotal, { compact: true, zeroAsDash: true })}${pct != null ? ` (${pctLabel})` : ''}`
 
   if (!hasData) {
-    return <span className="mono" style={{ fontSize: compact ? 11.5 : 12, color: 'var(--text-muted)', lineHeight: 1 }}>—</span>
+    return <span className={`mono usage-empty ${compact ? 'compact' : 'full'}`}>—</span>
   }
 
   if (mode === 'percent') {
-    const pctWidth = compact ? '6ch' : '7ch'
-    const labelWidth = compact ? '3.2ch' : '4ch'
-    const labelColor = 'var(--text-secondary)'
     const content = (
-      <div
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: compact ? 7 : 8,
-          minWidth: 0,
-          fontVariantNumeric: 'tabular-nums',
-          fontFeatureSettings: '"tnum" 1',
-        }}
-      >
+      <div className={`usage-percent ${compact ? 'compact' : 'full'}`}>
         {label && (
-          <span
-            className="mono"
-            style={{
-              width: labelWidth,
-              textAlign: 'right',
-              fontSize: compact ? 10.2 : 10.7,
-              fontWeight: 600,
-              color: labelColor,
-              letterSpacing: '0.03em',
-            }}
-          >
+          <span className="mono usage-percent-label">
             {label}
           </span>
         )}
-        <UsageDonut
-          pct={pct}
-          color={color}
-          compact={compact}
-          sizeOverride={donutSize}
-          strokeOverride={donutStroke}
-        />
-        <span
-          className="mono"
-          style={{
-            width: pctWidth,
-            textAlign: 'left',
-            color,
-            fontWeight: 700,
-            fontSize: compact ? 10.8 : 11.8,
-            lineHeight: 1,
-          }}
-        >
+        <span className={`usage-tone-${tone}`}>
+          <UsageDonut
+            pct={pct}
+            color={color}
+            compact={compact}
+            sizeOverride={donutSize}
+            strokeOverride={donutStroke}
+          />
+        </span>
+        <span className={`mono usage-percent-value usage-tone-${tone}`}>
           {pctLabel}
         </span>
       </div>
@@ -149,41 +126,33 @@ export default function ResourceUsage({
   }
 
   return (
-    <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: compact ? 6 : 7 }}>
-      <UsageDonut
-        pct={pct}
-        color={color}
-        compact={compact}
-        sizeOverride={donutSize}
-        strokeOverride={donutStroke}
-      />
+    <div className={`usage-detail ${compact ? 'compact' : 'full'}`}>
+      <span className={`usage-tone-${tone}`}>
+        <UsageDonut
+          pct={pct}
+          color={color}
+          compact={compact}
+          sizeOverride={donutSize}
+          strokeOverride={donutStroke}
+        />
+      </span>
 
-      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: showPercent ? 3 : 0 }}>
-        <div
-          className="mono"
-          style={{
-            minWidth: 0,
-            display: 'grid',
-            gridTemplateColumns: `${segmentWidth} 1ch ${segmentWidth}`,
-            alignItems: 'center',
-            lineHeight: 1,
-            whiteSpace: 'nowrap',
-            fontVariantNumeric: 'tabular-nums',
-            fontFeatureSettings: '"tnum" 1',
-          }}
-        >
-          <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: compact ? 10.8 : 11.8, textAlign: 'right' }}>
-            {usedLabel}
-          </span>
-          <span style={{ color: 'var(--text-secondary)', fontSize: compact ? 10.5 : 11.2, textAlign: 'center' }}>
-            /
-          </span>
-          <span style={{ color: 'var(--text-primary)', fontSize: compact ? 10.8 : 11.8, textAlign: 'left' }}>
-            {totalLabel}
-          </span>
-        </div>
+      <div className={`usage-detail-text ${showPercent ? 'with-percent' : ''}`}>
+        {compact ? (
+          <div className="mono usage-detail-compact-values">
+            <span className="usage-tone-accent usage-detail-used">{usedLabel}</span>
+            <span className="usage-detail-separator">/</span>
+            <span className="usage-detail-total">{totalLabel}</span>
+          </div>
+        ) : (
+          <div className="mono usage-detail-grid-values">
+            <span className="usage-tone-accent usage-detail-used">{usedLabel}</span>
+            <span className="usage-detail-separator">/</span>
+            <span className="usage-detail-total">{totalLabel}</span>
+          </div>
+        )}
         {showPercent && (
-          <span className="mono" style={{ color, fontWeight: 700, fontSize: compact ? 10.2 : 10.8, lineHeight: 1 }}>
+          <span className={`mono usage-detail-percent usage-tone-${tone}`}>
             {pctLabel}
           </span>
         )}
