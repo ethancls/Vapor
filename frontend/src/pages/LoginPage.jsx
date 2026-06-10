@@ -72,9 +72,9 @@ export default function LoginPage({ onLogin }) {
         zIndex: 1,
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <img src="/vapor.png" width={52} height={52} alt="Vapor" />
+          <img src="/eve.svg" width={52} height={52} alt="Eve" />
           <p style={{ fontFamily: 'Syne', fontWeight: 800, fontSize: 24, color: 'var(--text-primary)', margin: 0 }}>
-            Vapor
+            Eve
           </p>
         </div>
 

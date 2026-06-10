@@ -1,4 +1,4 @@
-package multipass
+package container
 
 import (
 	"bytes"

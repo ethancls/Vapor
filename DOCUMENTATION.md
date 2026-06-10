@@ -1,19 +1,19 @@
-# Vapor Documentation
+# Eve Documentation
 
 ## 1. Architecture
 
-Vapor = backend Go + frontend React.
+Eve = backend Go + frontend React.
 
 - Backend: HTTP API + WebSocket
 - Frontend: bundle Vite (embarqué dans le binaire en prod)
 - Hyperviseur: Multipass CLI
-- Stockage: SQLite (`VAPOR_DB_PATH`)
+- Stockage: SQLite (`EVE_DB_PATH`)
 
 ## 2. Auth et comptes
 
 Le backend initialise un compte owner par défaut uniquement si la table `users` est vide:
 
-- login: `vapor`
+- login: `eve`
 - password: `vap0r`
 
 Ce bootstrap est déclenché au démarrage (`EnsureDefaultOwner(...)` dans `main.go`).
@@ -48,7 +48,7 @@ make dev
 
 ```bash
 make build
-./vapor
+./eve
 ```
 
 ## 4. Installation prod (systemd)
@@ -63,16 +63,16 @@ Le script:
 
 1. vérifie `multipass`
 2. build frontend + backend
-3. installe `/usr/local/bin/vapor`
-4. crée `/etc/vapor/vapor.env` si absent
-5. installe `/etc/systemd/system/vapor@.service`
-6. active `vapor@<user-courant>`
+3. installe `/usr/local/bin/eve`
+4. crée `/etc/eve/eve.env` si absent
+5. installe `/etc/systemd/system/eve@.service`
+6. active `eve@<user-courant>`
 
 ### Vérification service
 
 ```bash
-systemctl status "vapor@$(id -un)"
-journalctl -u "vapor@$(id -un)" -f
+systemctl status "eve@$(id -un)"
+journalctl -u "eve@$(id -un)" -f
 ```
 
 ## 5. Désinstallation
@@ -83,50 +83,50 @@ sudo ./deploy/uninstall.sh
 
 Le script:
 
-- stop/disable les unités `vapor@*.service`
-- supprime `vapor@.service` (et legacy `vapor.service`)
+- stop/disable les unités `eve@*.service`
+- supprime `eve@.service` (et legacy `eve.service`)
 - recharge systemd
 
 Il conserve volontairement:
 
-- `/etc/vapor/vapor.env`
-- `/var/lib/vapor/`
+- `/etc/eve/eve.env`
+- `/var/lib/eve/`
 
 ## 6. Configuration runtime
 
-Exemple de base: `deploy/vapor.env.example`.
+Exemple de base: `deploy/eve.env.example`.
 
 Variables principales:
 
-- `VAPOR_BIND`
-- `VAPOR_SESSION_TTL`
-- `VAPOR_JWT_SECRET`
-- `VAPOR_MULTIPASS_BINARY`
-- `VAPOR_MULTIPASS_TIMEOUT`
-- `VAPOR_MULTIPASS_CONCURRENCY`
-- `VAPOR_INSTANCES_CACHE_TTL`
-- `VAPOR_POLL_INTERVAL`
-- `VAPOR_DB_PATH`
-- `VAPOR_ACTIVITY_RETENTION`
-- `VAPOR_LOG_LEVEL`
-- `VAPOR_LOG_FORMAT`
-- `VAPOR_FRONTEND_DIR`
+- `EVE_BIND`
+- `EVE_SESSION_TTL`
+- `EVE_JWT_SECRET`
+- `EVE_MULTIPASS_BINARY`
+- `EVE_MULTIPASS_TIMEOUT`
+- `EVE_MULTIPASS_CONCURRENCY`
+- `EVE_INSTANCES_CACHE_TTL`
+- `EVE_POLL_INTERVAL`
+- `EVE_DB_PATH`
+- `EVE_ACTIVITY_RETENTION`
+- `EVE_LOG_LEVEL`
+- `EVE_LOG_FORMAT`
+- `EVE_FRONTEND_DIR`
 
 ### Variables legacy
 
-`VAPOR_UI_USERNAME` et `VAPOR_UI_PASSWORD` ne pilotent plus l'auth actuelle.
+`EVE_UI_USERNAME` et `EVE_UI_PASSWORD` ne pilotent plus l'auth actuelle.
 
 ## 7. Lancement manuel prod (sans script)
 
 ```bash
 npm run build --prefix frontend
-CGO_ENABLED=0 go build -ldflags="-s -w" -o vapor .
+CGO_ENABLED=0 go build -ldflags="-s -w" -o eve .
 
-export VAPOR_BIND=0.0.0.0:8100
-export VAPOR_DB_PATH=/var/lib/vapor/vapor.db
-export VAPOR_JWT_SECRET="$(openssl rand -base64 32)"
+export EVE_BIND=0.0.0.0:8100
+export EVE_DB_PATH=/var/lib/eve/eve.db
+export EVE_JWT_SECRET="$(openssl rand -base64 32)"
 
-./vapor
+./eve
 ```
 
 ## 8. Troubleshooting
@@ -138,31 +138,31 @@ export VAPOR_JWT_SECRET="$(openssl rand -base64 32)"
 
 ### 8.2 "invalid credentials"
 
-- Si premier démarrage sur DB vide: `vapor / vap0r`
+- Si premier démarrage sur DB vide: `eve / vap0r`
 - Sinon: identifiants déjà personnalisés en base
 
 ### 8.3 Multipass introuvable
 
 - Vérifier `which multipass`
-- Ou définir `VAPOR_MULTIPASS_BINARY` (chemin absolu)
+- Ou définir `EVE_MULTIPASS_BINARY` (chemin absolu)
 
 ### 8.4 Le service ne démarre pas
 
 ```bash
-journalctl -u "vapor@$(id -un)" -n 200 --no-pager
+journalctl -u "eve@$(id -un)" -n 200 --no-pager
 ```
 
 Vérifier aussi:
 
-- droits sur `VAPOR_DB_PATH`
+- droits sur `EVE_DB_PATH`
 - présence de Multipass dans le PATH du service
-- syntaxe du fichier `/etc/vapor/vapor.env`
+- syntaxe du fichier `/etc/eve/eve.env`
 
 ## 9. Sécurité minimale recommandée
 
-1. Changer immédiatement le mot de passe du compte `vapor`.
-2. Définir explicitement `VAPOR_JWT_SECRET` en prod.
-3. Exposer Vapor derrière un reverse proxy HTTPS (Nginx/Caddy/Traefik).
+1. Changer immédiatement le mot de passe du compte `eve`.
+2. Définir explicitement `EVE_JWT_SECRET` en prod.
+3. Exposer Eve derrière un reverse proxy HTTPS (Nginx/Caddy/Traefik).
 4. Restreindre l'accès réseau (LAN/VPN, pas Internet public direct).
 
 ## 10. Commandes utiles

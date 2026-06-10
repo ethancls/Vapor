@@ -173,13 +173,13 @@ export default function Sidebar({
           }}
         >
           <img
-            src="/vapor.png"
+            src="/eve.svg"
             width={40} height={40}
-            alt="Vapor"
+            alt="Eve"
             className="sidebar-brand-logo"
           />
           <div className="sidebar-brand-copy sidebar-label">
-            <span className="sidebar-brand-title">Vapor</span>
+            <span className="sidebar-brand-title">Eve</span>
           </div>
         </div>
 
@@ -413,10 +413,10 @@ export default function Sidebar({
             </p>
             <a
               className="sidebar-footer-github-link"
-              href="https://github.com/ethancls/Vapor"
+              href="https://github.com/ethancls/Eve"
               target="_blank"
               rel="noreferrer"
-              aria-label="Open Vapor GitHub repository"
+              aria-label="Open Eve GitHub repository"
               title="GitHub"
             >
               <Github size={14} />

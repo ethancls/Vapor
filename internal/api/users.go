@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/user/vapor/internal/store"
+	"github.com/user/eve/internal/store"
 )
 
 func (srv *Server) handleUsersDispatch(w http.ResponseWriter, r *http.Request) {

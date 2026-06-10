@@ -1,14 +1,14 @@
 # Build artifacts
-vapor
-vapor-linux-*
-vapor-macos-*
+eve
+eve-linux-*
+eve-macos-*
 tmp/
 
 # Frontend build output
 frontend/dist/
 
 # Runtime data
-vapor.db
+eve.db
 *.db-shm
 *.db-wal
 

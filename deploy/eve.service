@@ -1,12 +1,12 @@
 [Unit]
-Description=Vapor — Multipass Dashboard
+Description=Eve — Multipass Dashboard
 After=network.target
 
 [Service]
 Type=simple
 User=%i
-EnvironmentFile=/etc/vapor/vapor.env
-ExecStart=/usr/local/bin/vapor
+EnvironmentFile=/etc/eve/eve.env
+ExecStart=/usr/local/bin/eve
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

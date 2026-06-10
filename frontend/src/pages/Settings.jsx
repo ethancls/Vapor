@@ -356,7 +356,7 @@ function AuthSection({ currentRole }) {
               className="input"
               value={form.redirect_url}
               onChange={(e) => setForm((f) => ({ ...f, redirect_url: e.target.value }))}
-              placeholder="vapor.example.com"
+              placeholder="eve.example.com"
               disabled={!canWrite}
             />
           </div>

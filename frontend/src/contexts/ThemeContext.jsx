@@ -3,7 +3,7 @@ import { ThemeContext } from './themeContextObject'
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('vapor-theme') || 'dark' } catch { return 'dark' }
+    try { return localStorage.getItem('eve-theme') || 'dark' } catch { return 'dark' }
   })
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export function ThemeProvider({ children }) {
       themeColorMeta.setAttribute('content', resolved === 'dark' ? '#0a0a0a' : '#f7f8fb')
     }
     apply(theme)
-    try { localStorage.setItem('vapor-theme', theme) } catch (err) { void err }
+    try { localStorage.setItem('eve-theme', theme) } catch (err) { void err }
 
     if (theme === 'system') {
       const mq = window.matchMedia('(prefers-color-scheme: dark)')

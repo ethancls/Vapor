@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/user/vapor/internal/store"
+	"github.com/user/eve/internal/store"
 	"golang.org/x/oauth2"
 )
 
 const (
-	oidcStateCookieName = "vapor_oidc_state"
+	oidcStateCookieName = "eve_oidc_state"
 	oidcCallbackPath    = "/auth/oidc/callback"
 
 	appKeyOIDCEnabled      = "auth.oidc.enabled"

@@ -63,7 +63,7 @@ function NotFound() {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       height: '100%', gap: 24, padding: 40,
     }}>
-      <img src="/vapor.png" width={56} height={56} alt="Vapor"/>
+      <img src="/eve.svg" width={56} height={56} alt="Eve"/>
       <div style={{ textAlign: 'center' }}>
         <p className="mono" style={{ fontSize: 48, fontWeight: 700, color: 'var(--text-secondary)', lineHeight: 1, marginBottom: 12 }}>404</p>
         <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Page not found</p>
@@ -127,7 +127,7 @@ function AppInner({ onLogout }) {
 
   // Document title
   useEffect(() => {
-    document.title = pageTitle ? `Vapor | ${pageTitle}` : 'Vapor'
+    document.title = pageTitle ? `Eve | ${pageTitle}` : 'Eve'
   }, [pageTitle])
 
   // Global keyboard shortcuts
@@ -171,7 +171,7 @@ function AppInner({ onLogout }) {
             navOpen={mobileNavOpen}
             onToggleNav={() => setMobileNavOpen((prev) => !prev)}
             onNewInstance={goNewInstance}
-            title={pageTitle || 'Vapor'}
+            title={pageTitle || 'Eve'}
             backLabel={backTarget ? routeLabel(backTarget) : ''}
             onBack={backTarget ? () => navigate(backTarget, { state: { from: location.pathname } }) : null}
           />

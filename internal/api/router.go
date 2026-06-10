@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/user/vapor/internal/config"
-	"github.com/user/vapor/internal/multipass"
-	"github.com/user/vapor/internal/store"
+	"github.com/user/eve/internal/config"
+	"github.com/user/eve/internal/container"
+	"github.com/user/eve/internal/store"
 )
 
 // Server holds all dependencies for the HTTP server.
 type Server struct {
 	cfg       config.Config
-	mp        *multipass.Client
+	mp        *container.Client
 	activity  *store.ActivityStore
 	templates *store.TemplateStore
 	metrics   *store.MetricsStore
@@ -33,7 +33,7 @@ type Server struct {
 }
 
 // New creates a new Server.
-func New(cfg config.Config, mp *multipass.Client, activity *store.ActivityStore, templates *store.TemplateStore, metrics *store.MetricsStore, users *store.UserStore, appConfig *store.AppSettingsStore, logger *slog.Logger) *Server {
+func New(cfg config.Config, mp *container.Client, activity *store.ActivityStore, templates *store.TemplateStore, metrics *store.MetricsStore, users *store.UserStore, appConfig *store.AppSettingsStore, logger *slog.Logger) *Server {
 	srv := &Server{
 		cfg:       cfg,
 		mp:        mp,
@@ -297,7 +297,7 @@ func (srv *Server) routeInstances(w http.ResponseWriter, r *http.Request) {
 // --- frontend SPA handler ---
 
 func (srv *Server) buildFrontendHandler(frontendFS embed.FS) http.Handler {
-	// If VAPOR_FRONTEND_DIR is set, serve from disk
+	// If EVE_FRONTEND_DIR is set, serve from disk
 	if srv.cfg.FrontendDir != "" {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			path := r.URL.Path

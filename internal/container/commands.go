@@ -1,4 +1,4 @@
-package multipass
+package container
 
 var SupportedCommands = map[string]bool{
 	"alias":        true,

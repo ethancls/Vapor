@@ -1,4 +1,4 @@
-module github.com/user/vapor
+module github.com/user/eve
 
 go 1.24.0
 

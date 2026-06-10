@@ -14,9 +14,9 @@ type Config struct {
 	UIPassword           string
 	SessionTTL           time.Duration
 	JWTSecret            string
-	MultipassBinary      string
-	MultipassTimeout     time.Duration
-	MultipassConcurrency int
+	ContainerBinary      string
+	ContainerTimeout     time.Duration
+	ContainerConcurrency int
 	InstancesCacheTTL    time.Duration
 	PollInterval         time.Duration
 	DBPath               string
@@ -28,23 +28,23 @@ type Config struct {
 
 func Load() Config {
 	c := Config{
-		Bind:                 getEnv("VAPOR_BIND", "0.0.0.0:8100"),
-		UIUsername:           getEnv("VAPOR_UI_USERNAME", "admin"),
-		UIPassword:           getEnv("VAPOR_UI_PASSWORD", ""),
-		SessionTTL:           getDuration("VAPOR_SESSION_TTL", 24*time.Hour),
-		JWTSecret:            getEnv("VAPOR_JWT_SECRET", "J6bPIjxWczDfTE/5CDEs6KmkWucqmLCdWq0MjQG1Ui8="),
-		MultipassBinary:      getEnv("VAPOR_MULTIPASS_BINARY", "multipass"),
-		MultipassTimeout:     getDuration("VAPOR_MULTIPASS_TIMEOUT", 45*time.Second),
-		MultipassConcurrency: getInt("VAPOR_MULTIPASS_CONCURRENCY", 6),
-		InstancesCacheTTL:    getDuration("VAPOR_INSTANCES_CACHE_TTL", 2*time.Second),
-		PollInterval:         getDuration("VAPOR_POLL_INTERVAL", 5*time.Second),
-		DBPath:               getEnv("VAPOR_DB_PATH", "vapor.db"),
-		ActivityRetention:    getInt("VAPOR_ACTIVITY_RETENTION", 5000),
-		LogFormat:            getEnv("VAPOR_LOG_FORMAT", "text"),
-		FrontendDir:          getEnv("VAPOR_FRONTEND_DIR", ""),
+		Bind:                 getEnv("EVE_BIND", "0.0.0.0:8100"),
+		UIUsername:           getEnv("EVE_UI_USERNAME", "admin"),
+		UIPassword:           getEnv("EVE_UI_PASSWORD", ""),
+		SessionTTL:           getDuration("EVE_SESSION_TTL", 24*time.Hour),
+		JWTSecret:            getEnv("EVE_JWT_SECRET", "J6bPIjxWczDfTE/5CDEs6KmkWucqmLCdWq0MjQG1Ui8="),
+		ContainerBinary:      getEnv("EVE_CONTAINER_BINARY", "container"),
+		ContainerTimeout:     getDuration("EVE_CONTAINER_TIMEOUT", 45*time.Second),
+		ContainerConcurrency: getInt("EVE_CONTAINER_CONCURRENCY", 6),
+		InstancesCacheTTL:    getDuration("EVE_INSTANCES_CACHE_TTL", 2*time.Second),
+		PollInterval:         getDuration("EVE_POLL_INTERVAL", 5*time.Second),
+		DBPath:               getEnv("EVE_DB_PATH", "eve.db"),
+		ActivityRetention:    getInt("EVE_ACTIVITY_RETENTION", 5000),
+		LogFormat:            getEnv("EVE_LOG_FORMAT", "text"),
+		FrontendDir:          getEnv("EVE_FRONTEND_DIR", ""),
 	}
 
-	levelStr := getEnv("VAPOR_LOG_LEVEL", "info")
+	levelStr := getEnv("EVE_LOG_LEVEL", "info")
 	switch levelStr {
 	case "debug":
 		c.LogLevel = slog.LevelDebug

@@ -9,11 +9,11 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-	"github.com/user/vapor/internal/api"
-	"github.com/user/vapor/internal/config"
-	"github.com/user/vapor/internal/multipass"
-	"github.com/user/vapor/internal/poller"
-	"github.com/user/vapor/internal/store"
+	"github.com/user/eve/internal/api"
+	"github.com/user/eve/internal/config"
+	"github.com/user/eve/internal/container"
+	"github.com/user/eve/internal/poller"
+	"github.com/user/eve/internal/store"
 )
 
 //go:embed frontend/dist
@@ -33,10 +33,10 @@ func main() {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
-	logger.Info("starting vapor",
+	logger.Info("starting eve",
 		"bind", cfg.Bind,
 		"db", cfg.DBPath,
-		"multipass", cfg.MultipassBinary,
+		"container", cfg.ContainerBinary,
 		"poll_interval", cfg.PollInterval,
 	)
 
@@ -61,17 +61,17 @@ func main() {
 		os.Exit(1)
 	}
 	defer users.Close()
-	createdDefaultUser, err := users.EnsureDefaultOwner("vapor", "vap0r", "Vapor")
+	createdDefaultUser, err := users.EnsureDefaultOwner("eve", "vap0r", "Eve")
 	if err != nil {
 		logger.Error("failed to initialize default user", "err", err)
 		os.Exit(1)
 	}
 	if createdDefaultUser {
-		logger.Warn("created default owner user", "login", "vapor")
+		logger.Warn("created default owner user", "login", "eve")
 	}
 
 	if cfg.JWTSecret == "vap0r-dev-secret-change-me" {
-		logger.Warn("using default insecure JWT secret; set VAPOR_JWT_SECRET in production")
+		logger.Warn("using default insecure JWT secret; set EVE_JWT_SECRET in production")
 	}
 
 	appSettings, err := store.NewAppSettingsStore(cfg.DBPath)
@@ -83,21 +83,21 @@ func main() {
 
 	metrics := store.NewMetricsStore(60)
 
-	// Multipass client
-	mp := multipass.NewClient(
-		cfg.MultipassBinary,
-		cfg.MultipassTimeout,
+	// Container client
+	client := container.NewClient(
+		cfg.ContainerBinary,
+		cfg.ContainerTimeout,
 		cfg.InstancesCacheTTL,
-		cfg.MultipassConcurrency,
+		cfg.ContainerConcurrency,
 		logger,
 	)
 
 	// HTTP server
-	srv := api.New(cfg, mp, activity, templates, metrics, users, appSettings, logger)
+	srv := api.New(cfg, client, activity, templates, metrics, users, appSettings, logger)
 	handler2 := srv.Build(frontendFS)
 
 	// Poller
-	poll := poller.New(mp, metrics, cfg.PollInterval, srv.Broadcast, logger)
+	poll := poller.New(client, metrics, cfg.PollInterval, srv.Broadcast, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

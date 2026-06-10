@@ -12,7 +12,7 @@ export default function ShellPanel({ name, isRunning }) {
   const closingRef = useRef(false)
   const [status, setStatus] = useState('connecting') // 'connecting' | 'open' | 'closed' | 'error'
   const [errMsg, setErrMsg] = useState('')
-  const storageKey = `vapor-shell-session:${name}`
+  const storageKey = `eve-shell-session:${name}`
 
   function getStoredSessionID() {
     try {

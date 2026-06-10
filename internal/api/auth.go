@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/user/vapor/internal/store"
+	"github.com/user/eve/internal/store"
 )
 
-const sessionCookieName = "vapor_session"
+const sessionCookieName = "eve_session"
 
 type SessionUser struct {
 	ID    string `json:"id"`

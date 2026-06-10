@@ -5,8 +5,8 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "CGO_ENABLED=0 go build -o ./tmp/vapor ."
-  entrypoint = "./tmp/vapor"
+  cmd = "CGO_ENABLED=0 go build -o ./tmp/eve ."
+  entrypoint = "./tmp/eve"
   include_ext = ["go"]
   exclude_dir = ["frontend", "tmp", "backend", "backend_python", "deploy", "scripts"]
   delay = 500

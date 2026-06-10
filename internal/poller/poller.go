@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/user/vapor/internal/multipass"
-	"github.com/user/vapor/internal/store"
+	"github.com/user/eve/internal/container"
+	"github.com/user/eve/internal/store"
 )
 
 // BroadcastFn is called whenever fresh instance data is available.
@@ -14,7 +14,7 @@ type BroadcastFn func(instances []map[string]any)
 
 // Poller periodically polls multipass instances and broadcasts updates.
 type Poller struct {
-	client    *multipass.Client
+	client    *container.Client
 	metrics   *store.MetricsStore
 	interval  time.Duration
 	broadcast BroadcastFn
@@ -22,7 +22,7 @@ type Poller struct {
 }
 
 // New creates a Poller.
-func New(client *multipass.Client, metrics *store.MetricsStore, interval time.Duration, broadcast BroadcastFn, logger *slog.Logger) *Poller {
+func New(client *container.Client, metrics *store.MetricsStore, interval time.Duration, broadcast BroadcastFn, logger *slog.Logger) *Poller {
 	return &Poller{
 		client:    client,
 		metrics:   metrics,

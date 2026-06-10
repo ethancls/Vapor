@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Vapor install script — builds and installs the Go binary + systemd unit
+# Eve install script — builds and installs the Go binary + systemd unit
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BINARY=/usr/local/bin/vapor
-SERVICE_FILE=/etc/systemd/system/vapor@.service
-ENV_DIR=/etc/vapor
-ENV_FILE=$ENV_DIR/vapor.env
-DB_DIR=/var/lib/vapor
+BINARY=/usr/local/bin/eve
+SERVICE_FILE=/etc/systemd/system/eve@.service
+ENV_DIR=/etc/eve
+ENV_FILE=$ENV_DIR/eve.env
+DB_DIR=/var/lib/eve
 
 generate_jwt_secret() {
   if command -v openssl >/dev/null 2>&1; then
@@ -48,12 +48,12 @@ if ! command -v go &>/dev/null; then
   echo "ERROR: go not found. Install Go 1.22+ first."
   exit 1
 fi
-CGO_ENABLED=0 go build -ldflags="-s -w" -o "$REPO_ROOT/vapor" "$REPO_ROOT"
-echo "✓ Binary built: $(du -sh "$REPO_ROOT/vapor" | cut -f1)"
+CGO_ENABLED=0 go build -ldflags="-s -w" -o "$REPO_ROOT/eve" "$REPO_ROOT"
+echo "✓ Binary built: $(du -sh "$REPO_ROOT/eve" | cut -f1)"
 
 # 5. Install binary
 echo "→ Installing binary to $BINARY..."
-sudo install -m 755 "$REPO_ROOT/vapor" "$BINARY"
+sudo install -m 755 "$REPO_ROOT/eve" "$BINARY"
 echo "✓ Binary installed"
 
 # 6. Create env file if absent
@@ -62,13 +62,13 @@ if [ ! -f "$ENV_FILE" ]; then
   sudo mkdir -p "$ENV_DIR"
   JWT_SECRET="$(generate_jwt_secret)"
   sudo tee "$ENV_FILE" >/dev/null <<EOF
-VAPOR_BIND=0.0.0.0:8100
-VAPOR_SESSION_TTL=24h
-VAPOR_LOG_LEVEL=info
-VAPOR_MULTIPASS_BINARY=multipass
-VAPOR_JWT_SECRET=$JWT_SECRET
-VAPOR_DB_PATH=$DB_DIR/vapor.db
-VAPOR_ACTIVITY_RETENTION=5000
+EVE_BIND=0.0.0.0:8100
+EVE_SESSION_TTL=24h
+EVE_LOG_LEVEL=info
+EVE_MULTIPASS_BINARY=multipass
+EVE_JWT_SECRET=$JWT_SECRET
+EVE_DB_PATH=$DB_DIR/eve.db
+EVE_ACTIVITY_RETENTION=5000
 EOF
 
   echo "✓ Env file created: $ENV_FILE"
@@ -83,17 +83,17 @@ echo "✓ DB directory: $DB_DIR"
 
 # 8. Install systemd unit
 echo "→ Installing systemd unit..."
-sudo cp "$REPO_ROOT/deploy/vapor.service" "$SERVICE_FILE"
+sudo cp "$REPO_ROOT/deploy/eve.service" "$SERVICE_FILE"
 sudo systemctl daemon-reload
-sudo systemctl enable --now "vapor@$CURRENT_USER"
+sudo systemctl enable --now "eve@$CURRENT_USER"
 echo "✓ Service enabled and started"
 
 # 9. Show status
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Vapor is running!"
+echo "  Eve is running!"
 echo "  Dashboard: http://$(hostname -I | awk '{print $1}'):8100"
-echo "  Logs:      journalctl -u vapor@$CURRENT_USER -f"
+echo "  Logs:      journalctl -u eve@$CURRENT_USER -f"
 echo "  Config:    $ENV_FILE"
-echo "  Default login (first run only): vapor / vap0r"
+echo "  Default login (first run only): eve / vap0r"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

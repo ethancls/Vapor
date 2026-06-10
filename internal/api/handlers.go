@@ -17,8 +17,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/user/vapor/internal/multipass"
-	"github.com/user/vapor/internal/store"
+	"github.com/user/eve/internal/container"
+	"github.com/user/eve/internal/store"
 )
 
 var instanceNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}[a-z0-9]$`)
@@ -173,12 +173,12 @@ func (srv *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	cmds := multipass.SortedCommands()
+	cmds := container.SortedCommands()
 	items := make([]map[string]any, len(cmds))
 	for i, cmd := range cmds {
 		items[i] = map[string]any{
 			"name":     cmd,
-			"mutating": multipass.MutatingCommands[cmd],
+			"mutating": container.MutatingCommands[cmd],
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"commands": items})
@@ -602,7 +602,7 @@ func (srv *Server) handleSSHPassword(w http.ResponseWriter, r *http.Request, nam
 		script := "set -euo pipefail; " +
 			"sudo install -d -m 755 /etc/ssh/sshd_config.d; " +
 			"printf 'PasswordAuthentication yes\\nKbdInteractiveAuthentication yes\\n' | " +
-			"sudo tee /etc/ssh/sshd_config.d/99-vapor-password-auth.conf >/dev/null; " +
+			"sudo tee /etc/ssh/sshd_config.d/99-eve-password-auth.conf >/dev/null; " +
 			"if command -v systemctl >/dev/null 2>&1; then " +
 			"sudo systemctl restart ssh || sudo systemctl restart sshd; " +
 			"else sudo service ssh restart || sudo service sshd restart; fi"
@@ -744,7 +744,7 @@ func (srv *Server) handleSSHPasswordDisable(w http.ResponseWriter, r *http.Reque
 		script := "set -euo pipefail; " +
 			"sudo install -d -m 755 /etc/ssh/sshd_config.d; " +
 			"printf 'PasswordAuthentication no\\nKbdInteractiveAuthentication no\\n' | " +
-			"sudo tee /etc/ssh/sshd_config.d/99-vapor-password-auth.conf >/dev/null; " +
+			"sudo tee /etc/ssh/sshd_config.d/99-eve-password-auth.conf >/dev/null; " +
 			"if command -v systemctl >/dev/null 2>&1; then " +
 			"sudo systemctl restart ssh || sudo systemctl restart sshd; " +
 			"else sudo service ssh restart || sudo service sshd restart; fi"

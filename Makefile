@@ -11,7 +11,7 @@ SERVICE_USER ?= $(shell id -un)
 dev:
 	@mkdir -p tmp
 	@export PATH="$(PATH_EXT):$$PATH"; \
-	export VAPOR_BIND=0.0.0.0:8100; \
+	export EVE_BIND=0.0.0.0:8100; \
 	trap 'kill 0' SIGINT SIGTERM; \
 	if command -v air >/dev/null 2>&1; then \
 		air & \
@@ -26,18 +26,18 @@ dev:
 build:
 	@export PATH="$(PATH_EXT):$$PATH"; \
 	npm run build --prefix frontend && \
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o vapor . && \
-	echo "→ ./vapor ($$(du -sh vapor | cut -f1))"
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o eve . && \
+	echo "→ ./eve ($$(du -sh eve | cut -f1))"
 
 ## Lance le binaire de prod
 run: build
-	./vapor
+	./eve
 
 install:
 	@if command -v systemctl >/dev/null 2>&1; then \
 		./deploy/install.sh; \
 	else \
-		echo "install target is Linux/systemd-only. On macOS, use: make build && ./vapor"; \
+		echo "install target is Linux/systemd-only. On macOS, use: make build && ./eve"; \
 	fi
 
 uninstall:
@@ -49,14 +49,14 @@ uninstall:
 
 service-status:
 	@if command -v systemctl >/dev/null 2>&1; then \
-		systemctl --no-pager status "vapor@$(SERVICE_USER)"; \
+		systemctl --no-pager status "eve@$(SERVICE_USER)"; \
 	else \
 		echo "service-status is Linux/systemd-only."; \
 	fi
 
 logs:
 	@if command -v systemctl >/dev/null 2>&1; then \
-		journalctl -u "vapor@$(SERVICE_USER)" -f; \
+		journalctl -u "eve@$(SERVICE_USER)" -f; \
 	else \
 		echo "logs target is Linux/systemd-only."; \
 	fi

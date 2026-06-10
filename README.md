@@ -1,14 +1,14 @@
-# Vapor
+# Eve
 
 Dashboard web pour gérer des VM Multipass (instances, snapshots, réseaux, templates, utilisateurs) avec backend Go et frontend React.
 
 ## Authentification
 
-Vapor utilise une base utilisateurs locale (`users` dans SQLite), pas `VAPOR_UI_PASSWORD`.
+Eve utilise une base utilisateurs locale (`users` dans SQLite), pas `EVE_UI_PASSWORD`.
 
-Au premier démarrage sur une base vide (`VAPOR_DB_PATH`):
+Au premier démarrage sur une base vide (`EVE_DB_PATH`):
 
-- Login: `vapor`
+- Login: `eve`
 - Mot de passe: `vap0r`
 - Rôle: `owner`
 
@@ -54,7 +54,7 @@ Le frontend Vite proxy `/api`, `/auth`, `/ws` vers `localhost:8100`.
 
 ```bash
 make build
-./vapor
+./eve
 ```
 
 ## Installation systemd (prod)
@@ -66,16 +66,16 @@ make build
 Le script:
 
 1. Build frontend + binaire Go
-2. Installe `/usr/local/bin/vapor`
-3. Crée `/etc/vapor/vapor.env` si absent
-4. Installe `vapor@.service`
-5. Active `vapor@<user-courant>`
+2. Installe `/usr/local/bin/eve`
+3. Crée `/etc/eve/eve.env` si absent
+4. Installe `eve@.service`
+5. Active `eve@<user-courant>`
 
 Commandes utiles:
 
 ```bash
-systemctl status "vapor@$(id -un)"
-journalctl -u "vapor@$(id -un)" -f
+systemctl status "eve@$(id -un)"
+journalctl -u "eve@$(id -un)" -f
 ```
 
 ## Désinstallation
@@ -84,10 +84,10 @@ journalctl -u "vapor@$(id -un)" -f
 sudo ./deploy/uninstall.sh
 ```
 
-Le script retire les unités systemd Vapor, mais conserve:
+Le script retire les unités systemd Eve, mais conserve:
 
-- `/etc/vapor/vapor.env`
-- `/var/lib/vapor/`
+- `/etc/eve/eve.env`
+- `/var/lib/eve/`
 
 ## Configuration
 
@@ -95,24 +95,24 @@ Variables supportées (voir `internal/config/config.go`):
 
 | Variable | Défaut |
 |---|---|
-| `VAPOR_BIND` | `0.0.0.0:8100` |
-| `VAPOR_SESSION_TTL` | `24h` |
-| `VAPOR_JWT_SECRET` | valeur interne par défaut (à changer en prod) |
-| `VAPOR_MULTIPASS_BINARY` | `multipass` |
-| `VAPOR_MULTIPASS_TIMEOUT` | `45s` |
-| `VAPOR_MULTIPASS_CONCURRENCY` | `6` |
-| `VAPOR_INSTANCES_CACHE_TTL` | `2s` |
-| `VAPOR_POLL_INTERVAL` | `5s` |
-| `VAPOR_DB_PATH` | `vapor.db` |
-| `VAPOR_ACTIVITY_RETENTION` | `5000` |
-| `VAPOR_LOG_LEVEL` | `info` |
-| `VAPOR_LOG_FORMAT` | `text` |
-| `VAPOR_FRONTEND_DIR` | vide (frontend embarqué) |
+| `EVE_BIND` | `0.0.0.0:8100` |
+| `EVE_SESSION_TTL` | `24h` |
+| `EVE_JWT_SECRET` | valeur interne par défaut (à changer en prod) |
+| `EVE_MULTIPASS_BINARY` | `multipass` |
+| `EVE_MULTIPASS_TIMEOUT` | `45s` |
+| `EVE_MULTIPASS_CONCURRENCY` | `6` |
+| `EVE_INSTANCES_CACHE_TTL` | `2s` |
+| `EVE_POLL_INTERVAL` | `5s` |
+| `EVE_DB_PATH` | `eve.db` |
+| `EVE_ACTIVITY_RETENTION` | `5000` |
+| `EVE_LOG_LEVEL` | `info` |
+| `EVE_LOG_FORMAT` | `text` |
+| `EVE_FRONTEND_DIR` | vide (frontend embarqué) |
 
 Notes:
 
-- `VAPOR_UI_USERNAME` / `VAPOR_UI_PASSWORD` sont des anciens réglages, non utilisés par l'auth actuelle.
-- En production, définis `VAPOR_JWT_SECRET` explicitement.
+- `EVE_UI_USERNAME` / `EVE_UI_PASSWORD` sont des anciens réglages, non utilisés par l'auth actuelle.
+- En production, définis `EVE_JWT_SECRET` explicitement.
 
 ## Documentation détaillée
 

@@ -296,7 +296,7 @@ func (s *UserStore) EnsureDefaultOwner(login, password, name string) (bool, erro
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
-		name = "Vapor Owner"
+		name = "Eve Owner"
 	}
 
 	var count int
