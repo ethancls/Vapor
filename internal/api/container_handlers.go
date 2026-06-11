@@ -193,7 +193,7 @@ func (srv *Server) routeContainers(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"logs": res.Stdout, "stderr": res.Stderr})
 	case "stats":
-		res, raw, err := srv.mp.RunJSONChecked(r.Context(), "stats", []string{name}, map[string]any{"--format": "json"})
+		res, raw, err := srv.mp.RunJSONChecked(r.Context(), "stats", []string{name}, map[string]any{"--format": "json", "--no-stream": true})
 		if err != nil {
 			writeJSON(w, httpStatusFromError(err.Error()), map[string]string{"error": err.Error()})
 			return
@@ -282,7 +282,7 @@ func (srv *Server) routeMachines(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(name, "/")
 	machine := parts[0]
 	if len(parts) == 1 && r.Method == http.MethodGet {
-		info, err := srv.mp.Inspect(r.Context(), "machine inspect", machine)
+		info, err := srv.mp.GetInstanceInfo(r.Context(), machine)
 		if err != nil {
 			writeJSON(w, httpStatusFromError(err.Error()), map[string]string{"error": err.Error()})
 			return
@@ -311,7 +311,13 @@ func (srv *Server) routeMachines(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "unsupported machine action"})
 			return
 		}
-		res, err := srv.mp.RunChecked(r.Context(), command, []string{machine}, nil, "")
+		args := []string{machine}
+		var options map[string]any
+		if body.Action == "run" {
+			args = []string{"true"}
+			options = map[string]any{"--name": machine, "--detach": true}
+		}
+		res, err := srv.mp.RunChecked(r.Context(), command, args, options, "")
 		if err != nil {
 			writeJSON(w, httpStatusFromError(err.Error()), map[string]string{"error": err.Error()})
 			return

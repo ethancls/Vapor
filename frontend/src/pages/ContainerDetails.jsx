@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileText, Info, Loader2, Play, Skull, Square, Trash2 } from 'lucide-react'
+import { FileText, Info, Play, Skull, Square, Trash2 } from 'lucide-react'
 import { sileo } from 'sileo'
 import { api } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
-import Tooltip from '../components/Tooltip'
+import ResourceActionButton from '../components/ResourceActionButton'
 import DetailsTabs from '../components/instance-details/DetailsTabs'
 import ShellPanel from '../components/instance-details/ShellPanel'
 import ResourceUsage from '../components/instances/ResourceUsage'
@@ -67,24 +67,6 @@ function Stat({ label, value, accent = false, children = null }) {
         )}
       </div>
     </div>
-  )
-}
-
-function IconActionButton({ icon, label, color, disabled = false, onClick, isLoading = false }) {
-  return (
-    <Tooltip label={label}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={!isLoading && !disabled ? onClick : undefined}
-        disabled={disabled}
-        style={{ width: 34, height: 34, borderRadius: 9, border: 'none', background: 'transparent', color: disabled && !isLoading ? 'var(--text-muted)' : color, cursor: isLoading || disabled ? 'default' : 'pointer', opacity: disabled && !isLoading ? 0.45 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-        onMouseEnter={(e) => { if (!isLoading && !disabled) e.currentTarget.style.background = `color-mix(in srgb, ${color} 12%, transparent)` }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-      >
-        {isLoading ? <Loader2 size={14} style={{ animation: 'spin 0.7s linear infinite' }} /> : icon}
-      </button>
-    </Tooltip>
   )
 }
 
@@ -174,12 +156,12 @@ export default function ContainerDetails() {
           <InstanceStateBadge state={state} />
         </div>
         <div className="instance-details-header-actions" style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-          {!isRunning && <IconActionButton icon={<Play size={14} />} label="Start" color="var(--running)" disabled={busy && activeAction !== 'start'} isLoading={activeAction === 'start'} onClick={() => runAction('start', `Started ${name}`)} />}
-          {isRunning && <IconActionButton icon={<Square size={14} />} label="Stop" color="var(--stopped)" disabled={busy && activeAction !== 'stop'} isLoading={activeAction === 'stop'} onClick={() => runAction('stop', `Stopped ${name}`)} />}
-          {isRunning && <IconActionButton icon={<Skull size={14} />} label="Kill" color="var(--stopped)" disabled={busy && activeAction !== 'kill'} isLoading={activeAction === 'kill'} onClick={() => runAction('kill', `Killed ${name}`)} />}
-          <IconActionButton icon={<FileText size={14} />} label="Logs" color="#60a5fa" disabled={busy} onClick={() => setTab('logs')} />
-          <IconActionButton icon={<Info size={14} />} label="Inspect" color="#a78bfa" disabled={busy} onClick={() => setTab('inspect')} />
-          <IconActionButton icon={<Trash2 size={14} />} label="Delete" color="var(--stopped)" disabled={busy && activeAction !== 'delete'} isLoading={activeAction === 'delete'} onClick={() => setConfirmDelete(true)} />
+          {!isRunning && <ResourceActionButton icon={<Play size={14} />} label="Start" color="var(--running)" disabled={busy && activeAction !== 'start'} isLoading={activeAction === 'start'} onClick={() => runAction('start', `Started ${name}`)} />}
+          {isRunning && <ResourceActionButton icon={<Square size={14} />} label="Stop" color="var(--stopped)" disabled={busy && activeAction !== 'stop'} isLoading={activeAction === 'stop'} onClick={() => runAction('stop', `Stopped ${name}`)} />}
+          {isRunning && <ResourceActionButton icon={<Skull size={14} />} label="Kill" color="var(--stopped)" disabled={busy && activeAction !== 'kill'} isLoading={activeAction === 'kill'} onClick={() => runAction('kill', `Killed ${name}`)} />}
+          <ResourceActionButton icon={<FileText size={14} />} label="Logs" color="#60a5fa" disabled={busy} onClick={() => setTab('logs')} />
+          <ResourceActionButton icon={<Info size={14} />} label="Inspect" color="#a78bfa" disabled={busy} onClick={() => setTab('inspect')} />
+          <ResourceActionButton icon={<Trash2 size={14} />} label="Delete" color="var(--stopped)" disabled={busy && activeAction !== 'delete'} isLoading={activeAction === 'delete'} onClick={() => setConfirmDelete(true)} />
         </div>
       </div>
 

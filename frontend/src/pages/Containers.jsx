@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Play, Square, Skull, Trash2, FileText, X, ArrowUpRight } from 'lucide-react'
+import { Plus, Search, Play, Square, Skull, Trash2, FileText, X, ArrowUpRight, Info } from 'lucide-react'
 import { sileo } from 'sileo'
 import { api } from '../api/client'
 import ContainerDataTable from '../components/ContainerDataTable'
 import Modal from '../components/Modal'
 import ConfirmModal from '../components/ConfirmModal'
 import BrandIcon from '../components/BrandIcon'
+import ResourceActionButton from '../components/ResourceActionButton'
 import { SkeletonTable } from '../components/Skeletons'
 
 const EMPTY_CONTAINERS = []
@@ -31,6 +32,7 @@ export default function Containers() {
   const [filterState, setFilterState] = useState('All')
   const [newOpen, setNewOpen] = useState(false)
   const [logsFor, setLogsFor] = useState(null)
+  const [inspectContainer, setInspectContainer] = useState(null)
   const [deleteName, setDeleteName] = useState(null)
 
   const containersQuery = useQuery({
@@ -140,11 +142,12 @@ export default function Containers() {
             const isRunning = String(state).toLowerCase() === 'running'
             return (
               <div style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-                {!isRunning && <button className="icon-btn" title="Start" onClick={() => runAction(name, 'start', `Started ${name}`)}><Play size={14} /></button>}
-                {isRunning && <button className="icon-btn" title="Stop" onClick={() => runAction(name, 'stop', `Stopped ${name}`)}><Square size={14} /></button>}
-                {isRunning && <button className="icon-btn" title="Kill" onClick={() => runAction(name, 'kill', `Killed ${name}`)}><Skull size={14} /></button>}
-                <button className="icon-btn" title="Logs" onClick={() => setLogsFor(name)}><FileText size={14} /></button>
-                <button className="icon-btn danger" title="Delete" onClick={() => setDeleteName(name)}><Trash2 size={14} /></button>
+                {!isRunning && <ResourceActionButton icon={<Play size={14} />} label="Start" color="var(--running)" onClick={() => runAction(name, 'start', `Started ${name}`)} />}
+                {isRunning && <ResourceActionButton icon={<Square size={14} />} label="Stop" color="var(--stopped)" onClick={() => runAction(name, 'stop', `Stopped ${name}`)} />}
+                {isRunning && <ResourceActionButton icon={<Skull size={14} />} label="Kill" color="var(--stopped)" onClick={() => runAction(name, 'kill', `Killed ${name}`)} />}
+                <ResourceActionButton icon={<Info size={14} />} label="Inspect" color="#a78bfa" onClick={() => setInspectContainer(name)} />
+                <ResourceActionButton icon={<FileText size={14} />} label="Logs" color="#60a5fa" onClick={() => setLogsFor(name)} />
+                <ResourceActionButton icon={<Trash2 size={14} />} label="Delete" color="var(--stopped)" onClick={() => setDeleteName(name)} />
               </div>
             )
           }}
@@ -154,6 +157,7 @@ export default function Containers() {
 
       {newOpen && <NewContainerModal onClose={() => setNewOpen(false)} />}
       {logsFor && <ContainerLogsModal name={logsFor} onClose={() => setLogsFor(null)} />}
+      {inspectContainer && <ContainerInspectModal name={inspectContainer} onClose={() => setInspectContainer(null)} />}
       {deleteName && (
         <ConfirmModal
           title={`Delete ${deleteName}`}
@@ -207,6 +211,22 @@ function NewContainerModal({ onClose }) {
           <button type="submit" className="btn-accent">Run</button>
         </div>
       </form>
+    </Modal>
+  )
+}
+
+function ContainerInspectModal({ name, onClose }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['container', name],
+    queryFn: () => api.getContainer(name),
+    enabled: Boolean(name),
+    retry: false,
+  })
+  return (
+    <Modal title={`Inspect · ${name}`} onClose={onClose} size="lg">
+      <pre className="mono" style={{ minHeight: 260, maxHeight: '60vh', overflow: 'auto', margin: 0, padding: 14, background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+        {isLoading ? 'Loading container...' : error ? error.message : JSON.stringify(data?.container || data || {}, null, 2)}
+      </pre>
     </Modal>
   )
 }

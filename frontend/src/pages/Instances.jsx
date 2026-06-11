@@ -8,6 +8,7 @@ import ContainerDataTable from '../components/ContainerDataTable'
 import Modal from '../components/Modal'
 import ConfirmModal from '../components/ConfirmModal'
 import BrandIcon from '../components/BrandIcon'
+import ResourceActionButton from '../components/ResourceActionButton'
 import { SkeletonTable } from '../components/Skeletons'
 
 const EMPTY_MACHINES = []
@@ -22,6 +23,29 @@ function machineState(item) {
 
 function machineImage(item) {
   return item.image || item.raw?.image || item.raw?.kernel || '-'
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0
+  if (!value) return '—'
+  const gb = value / (1024 ** 3)
+  if (gb >= 1) return `${gb.toFixed(1)} GB`
+  const mb = value / (1024 ** 2)
+  if (mb >= 1) return `${mb.toFixed(0)} MB`
+  return `${value} B`
+}
+
+function machineMemory(item) {
+  return formatBytes(item.memory?.total ?? item.raw?.memory ?? item.raw?.memorySize)
+}
+
+function machineDisk(item) {
+  return formatBytes(item.disk?.total ?? item.raw?.diskSize ?? item.raw?.disk)
+}
+
+function machineNetwork(item) {
+  if (Array.isArray(item.ipv4) && item.ipv4.length) return item.ipv4.filter(Boolean).join(', ')
+  return item.raw?.ipAddress || '—'
 }
 
 export default function Instances() {
@@ -116,7 +140,7 @@ export default function Instances() {
       )}
 
       {machinesQuery.isLoading ? (
-        <SkeletonTable cols={[{ w: 140 }, { w: 100 }, { w: 220 }, { w: 100 }, { w: 120 }]} rows={5} />
+        <SkeletonTable cols={[{ w: 140 }, { w: 100 }, { w: 220 }, { w: 70 }, { w: 90 }, { w: 90 }, { w: 120 }]} rows={5} />
       ) : (
         <ContainerDataTable
           items={filteredMachines}
@@ -146,6 +170,9 @@ export default function Instances() {
             { key: 'state', label: 'State', render: machineState },
             { key: 'image', label: 'Kernel / Image', render: machineImage },
             { key: 'cpus', label: 'CPUs' },
+            { key: 'memory', label: 'RAM', render: machineMemory },
+            { key: 'disk', label: 'Disk', render: machineDisk },
+            { key: 'network', label: 'IP', render: machineNetwork },
             { key: 'created', label: 'Created' },
           ]}
           renderActions={(item) => {
@@ -153,11 +180,11 @@ export default function Instances() {
             const state = machineState(item)
             return (
               <div style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-                {state !== 'Running' && <button className="icon-btn" title="Run" onClick={() => runMachineAction(name, 'run', `Started ${name}`)}><Play size={14} /></button>}
-                {state === 'Running' && <button className="icon-btn" title="Stop" onClick={() => runMachineAction(name, 'stop', `Stopped ${name}`)}><Square size={14} /></button>}
-                <button className="icon-btn" title="Inspect" onClick={() => setInspectMachine(name)}><Info size={14} /></button>
-                <button className="icon-btn" title="Logs" onClick={() => setLogsFor(name)}><FileText size={14} /></button>
-                <button className="icon-btn danger" title="Delete" onClick={() => setDeleteName(name)}><Trash2 size={14} /></button>
+                {state !== 'Running' && <ResourceActionButton icon={<Play size={14} />} label="Run" color="var(--running)" onClick={() => runMachineAction(name, 'run', `Started ${name}`)} />}
+                {state === 'Running' && <ResourceActionButton icon={<Square size={14} />} label="Stop" color="var(--stopped)" onClick={() => runMachineAction(name, 'stop', `Stopped ${name}`)} />}
+                <ResourceActionButton icon={<Info size={14} />} label="Inspect" color="#a78bfa" onClick={() => setInspectMachine(name)} />
+                <ResourceActionButton icon={<FileText size={14} />} label="Logs" color="#60a5fa" onClick={() => setLogsFor(name)} />
+                <ResourceActionButton icon={<Trash2 size={14} />} label="Delete" color="var(--stopped)" onClick={() => setDeleteName(name)} />
               </div>
             )
           }}

@@ -229,16 +229,14 @@ func (c *Client) RunJSONChecked(ctx context.Context, command string, args []stri
 	if err != nil {
 		return nil, nil, err
 	}
-	var parsed any
-	if strings.TrimSpace(res.Stdout) != "" {
-		if jsonErr := json.Unmarshal([]byte(res.Stdout), &parsed); jsonErr != nil {
-			return nil, nil, &CommandError{
-				Message:  "invalid JSON from container: " + jsonErr.Error(),
-				Argv:     res.Argv,
-				ExitCode: res.ExitCode,
-				Stdout:   res.Stdout,
-				Stderr:   res.Stderr,
-			}
+	parsed, jsonErr := parsePossiblyJSON(res.Stdout)
+	if jsonErr != nil {
+		return nil, nil, &CommandError{
+			Message:  "invalid JSON from container: " + jsonErr.Error(),
+			Argv:     res.Argv,
+			ExitCode: res.ExitCode,
+			Stdout:   res.Stdout,
+			Stderr:   res.Stderr,
 		}
 	}
 	return res, parsed, nil
@@ -309,26 +307,29 @@ func (c *Client) BuilderStatus(ctx context.Context) (any, string, error) {
 }
 
 func (c *Client) Inspect(ctx context.Context, command, name string) (map[string]any, error) {
-	res, raw, err := c.RunJSONChecked(ctx, command, []string{name}, map[string]any{"--format": "json"})
-	if err == nil {
-		if m, ok := raw.(map[string]any); ok {
-			return m, nil
-		}
-		if list := normalizeJSONList(raw); len(list) > 0 {
-			return list[0], nil
-		}
-		return map[string]any{}, nil
+	if command == "machine inspect" {
+		return c.inspectPlainJSON(ctx, command, name)
 	}
 
-	res, textErr := c.RunChecked(ctx, command, []string{name}, nil, "")
-	if textErr != nil {
+	_, raw, err := c.RunJSONChecked(ctx, command, []string{name}, map[string]any{"--format": "json"})
+	if err != nil {
 		return nil, err
 	}
-	return map[string]any{
-		"name": name,
-		"text": res.Stdout,
-		"raw":  res.Stdout,
-	}, nil
+	return firstJSONMap(raw), nil
+}
+
+func (c *Client) inspectPlainJSON(ctx context.Context, command, name string) (map[string]any, error) {
+	res, err := c.RunChecked(ctx, command, []string{name}, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	parsed, jsonErr := parsePossiblyJSON(res.Stdout)
+	if jsonErr == nil {
+		info := firstJSONMap(parsed)
+		info["text"] = res.Stdout
+		return info, nil
+	}
+	return map[string]any{"name": name, "text": res.Stdout, "raw": res.Stdout}, nil
 }
 
 func (c *Client) GetAllInstancesInfo(ctx context.Context, useCache bool) ([]map[string]any, error) {
@@ -424,6 +425,28 @@ func cleanOutput(s string) string {
 		}
 	}
 	return strings.Join(result, "\n")
+}
+
+func parsePossiblyJSON(stdout string) (any, error) {
+	text := strings.TrimSpace(stdout)
+	if text == "" {
+		return nil, nil
+	}
+	var parsed any
+	if err := json.Unmarshal([]byte(text), &parsed); err != nil {
+		return nil, err
+	}
+	return parsed, nil
+}
+
+func firstJSONMap(raw any) map[string]any {
+	if m, ok := raw.(map[string]any); ok {
+		return m
+	}
+	if list := normalizeJSONList(raw); len(list) > 0 {
+		return list[0]
+	}
+	return map[string]any{}
 }
 
 func normalizeJSONList(raw any) []map[string]any {
@@ -663,12 +686,32 @@ func normalizeContainer(item map[string]any) map[string]any {
 	name := firstString(item, "name", "names", "container", "id")
 	state := firstString(item, "state", "status")
 	image := firstString(item, "image", "imageRef", "image_reference")
+	if image == "" {
+		if imageInfo, ok := item["image"].(map[string]any); ok {
+			image = firstString(imageInfo, "reference", "name")
+		}
+	}
 	id := firstString(item, "id", "containerID", "container_id")
+	if id == "" {
+		id = firstString(item, "containerId", "containerID")
+	}
 	if state == "" {
 		state = "Unknown"
 	}
 	if name == "" {
 		name = id
+	}
+	memoryTotal := toInt64(item["memory"])
+	if memoryTotal == 0 {
+		memoryTotal = toInt64(item["memoryLimit"])
+	}
+	diskTotal := toInt64(item["diskSize"])
+	if diskTotal == 0 {
+		diskTotal = toInt64(item["disk"])
+	}
+	ipv4 := []string{}
+	if ip := firstString(item, "ipAddress", "ip", "address"); ip != "" {
+		ipv4 = append(ipv4, ip)
 	}
 	return map[string]any{
 		"id":      id,
@@ -677,11 +720,11 @@ func normalizeContainer(item map[string]any) map[string]any {
 		"status":  state,
 		"image":   image,
 		"raw":     item,
-		"ipv4":    []string{},
+		"ipv4":    ipv4,
 		"cpus":    toInt64(item["cpus"]),
-		"memory":  map[string]any{"total": int64(0), "used": int64(0)},
-		"disk":    map[string]any{"total": int64(0), "used": int64(0)},
-		"created": firstString(item, "created", "createdAt", "created_at"),
+		"memory":  map[string]any{"total": memoryTotal, "used": int64(0)},
+		"disk":    map[string]any{"total": diskTotal, "used": int64(0)},
+		"created": firstString(item, "created", "createdAt", "created_at", "createdDate"),
 	}
 }
 
@@ -695,18 +738,38 @@ func normalizeMachine(item map[string]any) map[string]any {
 	if cpus == 0 {
 		cpus = toInt64(item["cpuCount"])
 	}
+	image := firstString(item, "image", "os", "kernel")
+	if image == "" {
+		if imageInfo, ok := item["image"].(map[string]any); ok {
+			image = firstString(imageInfo, "reference", "name")
+		}
+	}
+	memoryTotal := toInt64(item["memory"])
+	if memoryTotal == 0 {
+		memoryTotal = toInt64(item["memorySize"])
+	}
+	diskTotal := toInt64(item["diskSize"])
+	if diskTotal == 0 {
+		diskTotal = toInt64(item["disk"])
+	}
+	ipv4 := []string{}
+	if ip := firstString(item, "ipAddress", "ip", "address"); ip != "" {
+		ipv4 = append(ipv4, ip)
+	}
 	return map[string]any{
-		"id":      firstString(item, "id"),
-		"name":    name,
-		"state":   titleState(state),
-		"status":  state,
-		"image":   firstString(item, "image", "os", "kernel"),
-		"raw":     item,
-		"ipv4":    []string{},
-		"cpus":    cpus,
-		"memory":  map[string]any{"total": int64(0), "used": int64(0)},
-		"disk":    map[string]any{"total": int64(0), "used": int64(0)},
-		"created": firstString(item, "created", "createdAt", "created_at"),
+		"id":       firstString(item, "id"),
+		"name":     name,
+		"state":    titleState(state),
+		"status":   state,
+		"image":    image,
+		"raw":      item,
+		"ipv4":     ipv4,
+		"cpus":     cpus,
+		"memory":   map[string]any{"total": memoryTotal, "used": int64(0)},
+		"disk":     map[string]any{"total": diskTotal, "used": int64(0)},
+		"created":  firstString(item, "created", "createdAt", "created_at", "createdDate"),
+		"started":  firstString(item, "started", "startedAt", "started_at", "startedDate"),
+		"platform": item["platform"],
 	}
 }
 

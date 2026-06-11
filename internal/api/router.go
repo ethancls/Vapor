@@ -70,6 +70,7 @@ func (srv *Server) Build(frontendFS embed.FS) http.Handler {
 	// WebSocket (session required)
 	mux.Handle("/ws/instances", srv.requireSession(http.HandlerFunc(srv.HandleWS)))
 	mux.Handle("/ws/instances/", srv.requireSession(http.HandlerFunc(srv.handleShellWS)))
+	mux.Handle("/ws/machines/", srv.requireSession(http.HandlerFunc(srv.handleShellWS)))
 	mux.Handle("/ws/containers/", srv.requireSession(http.HandlerFunc(srv.handleShellWS)))
 
 	// API routes (session required)

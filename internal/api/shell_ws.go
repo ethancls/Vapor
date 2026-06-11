@@ -8,13 +8,16 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// handleShellWS handles /ws/instances/{name}/shell and /ws/containers/{name}/shell.
+// handleShellWS handles shell websocket routes for instances, machines, and containers.
 // If ?session=<id> is provided, it tries to re-attach to that shell session.
 // Otherwise, a new shell session is created.
 func (srv *Server) handleShellWS(w http.ResponseWriter, r *http.Request) {
 	kind := "instance"
 	prefix := "/ws/instances/"
-	if strings.HasPrefix(r.URL.Path, "/ws/containers/") {
+	if strings.HasPrefix(r.URL.Path, "/ws/machines/") {
+		kind = "machine"
+		prefix = "/ws/machines/"
+	} else if strings.HasPrefix(r.URL.Path, "/ws/containers/") {
 		kind = "container"
 		prefix = "/ws/containers/"
 	}

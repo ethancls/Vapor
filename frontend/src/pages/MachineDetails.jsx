@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileText, Info, Loader2, Power, PowerOff, Trash2 } from 'lucide-react'
+import { FileText, Info, Power, PowerOff, Trash2 } from 'lucide-react'
 import { sileo } from 'sileo'
 import { api } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
-import Tooltip from '../components/Tooltip'
+import ResourceActionButton from '../components/ResourceActionButton'
 import DetailsTabs from '../components/instance-details/DetailsTabs'
+import ShellPanel from '../components/instance-details/ShellPanel'
 import InstanceStateBadge from '../components/instances/InstanceStateBadge'
 
 const TABS = [
+  { value: 'shell', label: 'Shell' },
   { value: 'logs', label: 'Logs' },
   { value: 'inspect', label: 'Inspect' },
 ]
@@ -26,32 +28,37 @@ function machineValue(machine, keys, fallback = '—') {
   return fallback
 }
 
-function Stat({ label, value, accent = false }) {
+function bytesValue(machine, key) {
+  const value = machine?.[key]
+  if (!value || typeof value !== 'object') return { total: 0, used: 0 }
+  return {
+    total: Number(value.total) || 0,
+    used: Number(value.used) || 0,
+  }
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0
+  if (!value) return '—'
+  const gb = value / (1024 ** 3)
+  if (gb >= 1) return `${gb.toFixed(1)} GB`
+  const mb = value / (1024 ** 2)
+  if (mb >= 1) return `${mb.toFixed(0)} MB`
+  return `${value} B`
+}
+
+function Stat({ label, value, accent = false, children = null }) {
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', height: 62, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
       <p className="section-label" style={{ margin: 0, lineHeight: 1 }}>{label}</p>
-      <span className="mono" style={{ fontSize: 13, color: accent ? 'var(--accent)' : 'var(--text-primary)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {value}
-      </span>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', minWidth: 0, overflow: 'hidden' }}>
+        {children ?? (
+          <span className="mono" style={{ fontSize: 13, color: accent ? 'var(--accent)' : 'var(--text-primary)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {value}
+          </span>
+        )}
+      </div>
     </div>
-  )
-}
-
-function IconActionButton({ icon, label, color, disabled = false, onClick, isLoading = false }) {
-  return (
-    <Tooltip label={label}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={!isLoading && !disabled ? onClick : undefined}
-        disabled={disabled}
-        style={{ width: 34, height: 34, borderRadius: 9, border: 'none', background: 'transparent', color: disabled && !isLoading ? 'var(--text-muted)' : color, cursor: isLoading || disabled ? 'default' : 'pointer', opacity: disabled && !isLoading ? 0.45 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-        onMouseEnter={(e) => { if (!isLoading && !disabled) e.currentTarget.style.background = `color-mix(in srgb, ${color} 12%, transparent)` }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-      >
-        {isLoading ? <Loader2 size={14} style={{ animation: 'spin 0.7s linear infinite' }} /> : icon}
-      </button>
-    </Tooltip>
   )
 }
 
@@ -82,7 +89,7 @@ export default function MachineDetails() {
   const name = decodeURIComponent(rawName || '')
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const [tab, setTab] = useState('logs')
+  const [tab, setTab] = useState('shell')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [activeAction, setActiveAction] = useState('')
 
@@ -113,6 +120,9 @@ export default function MachineDetails() {
   const machine = rawMachine(machineQuery.data)
   const state = machineValue(machine, ['state', 'status', 'raw.state', 'raw.status'])
   const isRunning = String(state).toLowerCase() === 'running'
+  const memory = bytesValue(machine, 'memory')
+  const disk = bytesValue(machine, 'disk')
+  const ips = Array.isArray(machine.ipv4) ? machine.ipv4.filter(Boolean) : []
   const busy = Boolean(activeAction)
 
   if (machineQuery.isLoading) {
@@ -131,23 +141,25 @@ export default function MachineDetails() {
           <InstanceStateBadge state={state} />
         </div>
         <div className="instance-details-header-actions" style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-          {!isRunning && <IconActionButton icon={<Power size={14} />} label="Run" color="var(--running)" disabled={busy && activeAction !== 'run'} isLoading={activeAction === 'run'} onClick={() => runAction('run', `Started ${name}`)} />}
-          {isRunning && <IconActionButton icon={<PowerOff size={14} />} label="Stop" color="var(--stopped)" disabled={busy && activeAction !== 'stop'} isLoading={activeAction === 'stop'} onClick={() => runAction('stop', `Stopped ${name}`)} />}
-          <IconActionButton icon={<FileText size={14} />} label="Logs" color="#60a5fa" disabled={busy} onClick={() => setTab('logs')} />
-          <IconActionButton icon={<Info size={14} />} label="Inspect" color="#a78bfa" disabled={busy} onClick={() => setTab('inspect')} />
-          <IconActionButton icon={<Trash2 size={14} />} label="Delete" color="var(--stopped)" disabled={busy && activeAction !== 'delete'} isLoading={activeAction === 'delete'} onClick={() => setConfirmDelete(true)} />
+          {!isRunning && <ResourceActionButton icon={<Power size={14} />} label="Run" color="var(--running)" disabled={busy && activeAction !== 'run'} isLoading={activeAction === 'run'} onClick={() => runAction('run', `Started ${name}`)} />}
+          {isRunning && <ResourceActionButton icon={<PowerOff size={14} />} label="Stop" color="var(--stopped)" disabled={busy && activeAction !== 'stop'} isLoading={activeAction === 'stop'} onClick={() => runAction('stop', `Stopped ${name}`)} />}
+          <ResourceActionButton icon={<FileText size={14} />} label="Logs" color="#60a5fa" disabled={busy} onClick={() => setTab('logs')} />
+          <ResourceActionButton icon={<Info size={14} />} label="Inspect" color="#a78bfa" disabled={busy} onClick={() => setTab('inspect')} />
+          <ResourceActionButton icon={<Trash2 size={14} />} label="Delete" color="var(--stopped)" disabled={busy && activeAction !== 'delete'} isLoading={activeAction === 'delete'} onClick={() => setConfirmDelete(true)} />
         </div>
       </div>
 
       <div className="instance-details-stats" style={{ marginBottom: 14 }}>
         <Stat label="vCPUs" value={machineValue(machine, ['cpus', 'cpu_count', 'configuration.cpus'])} accent />
-        <Stat label="RAM" value={machineValue(machine, ['memory', 'memory_size', 'configuration.memory'], 'Unavailable')} />
-        <Stat label="Disk" value={machineValue(machine, ['disk', 'disk_size', 'configuration.disk'], 'Unavailable')} />
-        <Stat label="Kernel / Image" value={machineValue(machine, ['image', 'kernel', 'configuration.kernel'])} />
-        <Stat label="Created" value={machineValue(machine, ['created', 'created_at'])} />
+        <Stat label="RAM" value={formatBytes(memory.total)} />
+        <Stat label="Disk" value={formatBytes(disk.total)} />
+        <Stat label="Network" value={ips.length ? ips.join(', ') : 'No IPv4'} />
+        <Stat label="Image" value={machineValue(machine, ['image', 'kernel', 'configuration.kernel'])} />
+        <Stat label="Started" value={machineValue(machine, ['started', 'started_at', 'raw.startedDate'], machineValue(machine, ['created', 'created_at', 'raw.createdDate']))} />
       </div>
 
       <DetailsTabs tabs={TABS} value={tab} onChange={setTab} />
+      {tab === 'shell' && <ShellPanel name={name} isRunning={isRunning} wsBase="/ws/machines" resourceLabel="Machine" storageKeyPrefix="eve-machine-shell-session" />}
       {tab === 'logs' && <LogsPanel name={name} />}
       {tab === 'inspect' && <InspectPanel data={machineQuery.data} isLoading={machineQuery.isLoading} error={machineQuery.error} />}
 
