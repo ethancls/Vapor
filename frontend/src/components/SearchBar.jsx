@@ -235,7 +235,7 @@ function mapSettingsEntries(data) {
 
   const tabLabel = {
     system: 'System',
-    multipass: 'Apple Container',
+    container: 'Apple Container',
     auth: 'Auth',
     shortcuts: 'Shortcuts',
   }
@@ -250,9 +250,9 @@ function mapSettingsEntries(data) {
       const normalizedKey = settingKey.toLowerCase()
       const humanKey = settingKey.replace(/[._-]+/g, ' ').trim()
       let tab = 'system'
-      if (normalizedKey === 'local.bridged-network' || normalizedKey.startsWith('local.')) tab = 'multipass'
+      if (normalizedKey.startsWith('build.') || normalizedKey.startsWith('container.') || normalizedKey.startsWith('machine.') || normalizedKey.startsWith('kernel.') || normalizedKey.startsWith('registry.') || normalizedKey.startsWith('vminit.') || normalizedKey.startsWith('network.')) tab = 'container'
       if (normalizedKey.startsWith('auth.') || normalizedKey.includes('oidc') || normalizedKey.includes('openid')) tab = 'auth'
-      const focus = normalizedKey === 'local.bridged-network' ? 'bridged-network' : null
+      const focus = null
       const valueText = String(value ?? '').trim()
 
       return {

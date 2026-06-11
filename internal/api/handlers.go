@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/user/eve/internal/container"
 	"github.com/user/eve/internal/store"
 )
 
@@ -105,10 +104,59 @@ func (srv *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err2.Error()})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"version": res.Stdout})
+		writeJSON(w, http.StatusOK, map[string]any{"version": res.Stdout, "lines": []string{res.Stdout}})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"version": data})
+	writeJSON(w, http.StatusOK, map[string]any{"version": data, "lines": formatContainerVersionLines(data)})
+}
+
+func formatContainerVersionLines(data any) []string {
+	items, ok := data.([]any)
+	if !ok {
+		if text := strings.TrimSpace(fmt.Sprintf("%v", data)); text != "" && text != "<nil>" {
+			return []string{text}
+		}
+		return []string{}
+	}
+	lines := make([]string, 0, len(items))
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		name := strings.TrimSpace(fmt.Sprintf("%v", m["appName"]))
+		version := strings.TrimSpace(fmt.Sprintf("%v", m["version"]))
+		build := strings.TrimSpace(fmt.Sprintf("%v", m["buildType"]))
+		commit := strings.TrimSpace(fmt.Sprintf("%v", m["commit"]))
+		if name == "" || name == "<nil>" {
+			continue
+		}
+		if idx := strings.Index(version, " version "); idx >= 0 {
+			version = strings.TrimSpace(version[idx+len(" version "):])
+		}
+		if idx := strings.Index(version, " ("); idx >= 0 {
+			version = strings.TrimSpace(version[:idx])
+		}
+		line := name
+		if version != "" && version != "<nil>" {
+			line += " " + version
+		}
+		details := []string{}
+		if build != "" && build != "<nil>" {
+			details = append(details, "build "+build)
+		}
+		if commit != "" && commit != "<nil>" {
+			if len(commit) > 7 {
+				commit = commit[:7]
+			}
+			details = append(details, "commit "+commit)
+		}
+		if len(details) > 0 {
+			line += " (" + strings.Join(details, ", ") + ")"
+		}
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 // --- GET /api/system/host ---
@@ -166,39 +214,6 @@ func detectHostMemoryMB() int64 {
 	return bytes / (1024 * 1024)
 }
 
-// --- GET /api/system/commands ---
-
-func (srv *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		methodNotAllowed(w)
-		return
-	}
-	cmds := container.SortedCommands()
-	items := make([]map[string]any, len(cmds))
-	for i, cmd := range cmds {
-		items[i] = map[string]any{
-			"name":     cmd,
-			"mutating": container.MutatingCommands[cmd],
-		}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"commands": items})
-}
-
-// --- GET /api/system/commands/{command}/help ---
-
-func (srv *Server) handleCommandHelp(w http.ResponseWriter, r *http.Request, command string) {
-	if r.Method != http.MethodGet {
-		methodNotAllowed(w)
-		return
-	}
-	help, err := srv.mp.CommandHelp(r.Context(), command)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"command": command, "help": help})
-}
-
 // --- GET /api/images ---
 
 func (srv *Server) handleImages(w http.ResponseWriter, r *http.Request) {
@@ -244,19 +259,17 @@ func (srv *Server) handleGetInstances(w http.ResponseWriter, r *http.Request) {
 
 func (srv *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name      string   `json:"name"`
-		Image     string   `json:"image"`
-		CPUs      any      `json:"cpus"`
-		Memory    string   `json:"memory"`
-		Disk      string   `json:"disk"`
-		Timeout   any      `json:"timeout"`
-		Networks  []string `json:"networks"`
-		Bridged   bool     `json:"bridged"`
-		CloudInit string   `json:"cloud_init"`
-		Mounts    []struct {
-			Host  string `json:"host"`
-			Guest string `json:"guest"`
-		} `json:"mounts"`
+		Name       string         `json:"name"`
+		Image      string         `json:"image"`
+		CPUs       any            `json:"cpus"`
+		Memory     string         `json:"memory"`
+		Platform   string         `json:"platform"`
+		Arch       string         `json:"arch"`
+		OS         string         `json:"os"`
+		HomeMount  string         `json:"home_mount"`
+		NoBoot     bool           `json:"no_boot"`
+		SetDefault bool           `json:"set_default"`
+		Options    map[string]any `json:"options"`
 	}
 	if !decodeBody(w, r, &body) {
 		return
@@ -265,59 +278,46 @@ func (srv *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "name is required"})
 		return
 	}
+	if body.Image == "" {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "image is required"})
+		return
+	}
 
-	opts := map[string]any{"--name": body.Name}
+	opts := cloneOptions(body.Options)
+	opts["--name"] = body.Name
 	if body.CPUs != nil {
 		opts["--cpus"] = fmt.Sprintf("%v", body.CPUs)
 	}
 	if body.Memory != "" {
 		opts["--memory"] = body.Memory
 	}
-	if body.Disk != "" {
-		opts["--disk"] = body.Disk
+	if body.Platform != "" {
+		opts["--platform"] = body.Platform
 	}
-	if body.Timeout != nil {
-		opts["--timeout"] = fmt.Sprintf("%v", body.Timeout)
+	if body.Arch != "" {
+		opts["--arch"] = body.Arch
 	}
-	if body.Bridged {
-		opts["--bridged"] = true
+	if body.OS != "" {
+		opts["--os"] = body.OS
 	}
-	if len(body.Networks) > 0 {
-		opts["--network"] = body.Networks
+	if body.HomeMount != "" {
+		opts["--home-mount"] = body.HomeMount
 	}
-
-	cloudInitStdin := ""
-	if body.CloudInit != "" {
-		opts["--cloud-init"] = "-"
-		cloudInitStdin = body.CloudInit
+	if body.NoBoot {
+		opts["--no-boot"] = true
 	}
-
-	ctx := r.Context()
-	args := []string{}
-	if body.Image != "" {
-		args = []string{body.Image}
+	if body.SetDefault {
+		opts["--set-default"] = true
 	}
 
-	_, err := srv.mp.RunChecked(ctx, "launch", args, opts, cloudInitStdin)
+	_, err := srv.mp.RunChecked(r.Context(), "machine create", []string{body.Image}, opts, "")
 	if err != nil {
-		srv.logAction("launch", body.Name, "error", err.Error())
+		srv.logAction("machine create", body.Name, "error", err.Error())
 		writeJSON(w, httpStatusFromError(err.Error()), map[string]string{"error": err.Error()})
 		return
 	}
-
-	// Apply mounts
-	for _, m := range body.Mounts {
-		target := body.Name
-		if m.Guest != "" {
-			target = body.Name + ":" + m.Guest
-		}
-		if _, merr := srv.mp.RunChecked(ctx, "mount", []string{m.Host, target}, nil, ""); merr != nil {
-			srv.logger.Warn("mount failed after launch", "err", merr)
-		}
-	}
-
 	srv.mp.InvalidateCache()
-	srv.logAction("launch", body.Name, "success", "")
+	srv.logAction("machine create", body.Name, "success", "")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success", "error": ""})
 }
 
@@ -1067,8 +1067,7 @@ func (srv *Server) handleRestoreSnapshot(w http.ResponseWriter, r *http.Request,
 	}
 	ref := instance + "." + snapshot
 	if _, err := srv.mp.RunChecked(r.Context(), "restore", []string{ref}, opts, ""); err != nil {
-		// Multipass can require interactive confirmation for restore.
-		// In API mode we retry once with --destructive to make restore non-interactive.
+		// Some restore flows require confirmation; retry once with --destructive for API mode.
 		lower := strings.ToLower(err.Error())
 		needsDestructive := strings.Contains(lower, "unable to query client for confirmation") ||
 			strings.Contains(lower, "use 'destructive'")
@@ -1517,19 +1516,19 @@ func (srv *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request, 
 
 // --- helpers ---
 
-var mpDateFormats = []string{
+var cliDateFormats = []string{
 	"Mon Jan 2 15:04:05 2006 MST",
 	"Mon Jan _2 15:04:05 2006 MST",
 	"2006-01-02T15:04:05Z07:00",
 	"2006-01-02 15:04:05",
 }
 
-func normalizeMultipassDate(s string) string {
+func normalizeCLIDate(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""
 	}
-	for _, layout := range mpDateFormats {
+	for _, layout := range cliDateFormats {
 		if t, err := time.Parse(layout, s); err == nil {
 			return t.UTC().Format(time.RFC3339)
 		}
@@ -1555,8 +1554,8 @@ func normalizeSnapshots(data any) []map[string]any {
 			}
 		}
 	}
-	// multipass info --snapshots format: info.instance.snapshots.snapshotName
-	// also handles old list --snapshots format: info.instance.snapshotName
+	// Snapshot detail formats can be nested under info.instance.snapshots.snapshotName
+	// or under info.instance.snapshotName.
 	if info, ok := dm["info"].(map[string]any); ok {
 		var result []map[string]any
 		for instance, instData := range info {
@@ -1572,7 +1571,7 @@ func normalizeSnapshots(data any) []map[string]any {
 						for k, v := range metaMap {
 							if k == "created" {
 								if s, ok := v.(string); ok {
-									item[k] = normalizeMultipassDate(s)
+									item[k] = normalizeCLIDate(s)
 									continue
 								}
 							}
@@ -1786,7 +1785,7 @@ var imageExtensions = map[string]bool{
 	".vmdk": true, ".vhd": true, ".vhdx": true, ".raw": true,
 }
 
-// Only these are supported by Multipass on Linux
+// Only these disk image extensions are accepted by the import flow.
 var supportedImageExtensions = map[string]bool{
 	".img": true, ".qcow2": true,
 }

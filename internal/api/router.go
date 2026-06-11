@@ -78,9 +78,7 @@ func (srv *Server) Build(frontendFS embed.FS) http.Handler {
 	apiMux.HandleFunc("/api/health", srv.handleHealth)
 	apiMux.HandleFunc("/api/system/version", srv.handleVersion)
 	apiMux.HandleFunc("/api/system/host", srv.handleHostInfo)
-	apiMux.HandleFunc("/api/system/commands", srv.handleCommands)
 	apiMux.HandleFunc("/api/container/system", srv.handleContainerSystem)
-	apiMux.HandleFunc("/api/container/commands", srv.handleContainerCommands)
 	apiMux.HandleFunc("/api/fs/browse", srv.handleFsBrowse)
 	apiMux.HandleFunc("/api/fs/check-url", srv.handleFsCheckURL)
 	apiMux.HandleFunc("/api/images", srv.handleImages)
@@ -93,6 +91,7 @@ func (srv *Server) Build(frontendFS embed.FS) http.Handler {
 	apiMux.HandleFunc("/api/builder", srv.handleBuilder)
 	apiMux.HandleFunc("/api/containers", srv.handleContainersDispatch)
 	apiMux.HandleFunc("/api/machines", srv.handleMachines)
+	apiMux.HandleFunc("/api/settings/container-properties", srv.handleContainerProperties)
 	apiMux.HandleFunc("/api/settings/keys", srv.handleSettingsKeys)
 	apiMux.HandleFunc("/api/settings", srv.handleGetSettings)
 	apiMux.HandleFunc("/api/app/auth", srv.handleAppAuthSettings)
@@ -103,10 +102,8 @@ func (srv *Server) Build(frontendFS embed.FS) http.Handler {
 	apiMux.HandleFunc("/api/users", srv.handleUsersDispatch)
 
 	// Parameterised routes via prefix matching
-	apiMux.HandleFunc("/api/container/commands/", srv.routeContainerCommandHelp)
 	apiMux.HandleFunc("/api/containers/", srv.routeContainers)
 	apiMux.HandleFunc("/api/machines/", srv.routeMachines)
-	apiMux.HandleFunc("/api/system/commands/", srv.routeCommandHelp)
 	apiMux.HandleFunc("/api/settings/", srv.routeSettings)
 	apiMux.HandleFunc("/api/templates/", srv.routeTemplateDelete)
 	apiMux.HandleFunc("/api/instances/", srv.routeInstances)
@@ -153,17 +150,6 @@ func (srv *Server) handleTemplatesDispatch(w http.ResponseWriter, r *http.Reques
 	default:
 		methodNotAllowed(w)
 	}
-}
-
-func (srv *Server) routeCommandHelp(w http.ResponseWriter, r *http.Request) {
-	// /api/system/commands/{command}/help
-	path := strings.TrimPrefix(r.URL.Path, "/api/system/commands/")
-	parts := strings.SplitN(path, "/", 2)
-	if len(parts) == 2 && parts[1] == "help" {
-		srv.handleCommandHelp(w, r, parts[0])
-		return
-	}
-	writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 }
 
 func (srv *Server) routeSnapshots(w http.ResponseWriter, r *http.Request) {

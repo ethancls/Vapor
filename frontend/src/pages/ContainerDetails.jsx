@@ -42,6 +42,13 @@ function toBytes(value) {
   return n * scale
 }
 
+function formatDate(value) {
+  if (!value || value === '—') return value || '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+}
+
 function extractStats(data) {
   const stats = data?.stats || data?.raw || data || {}
   const item = Array.isArray(stats) ? stats[0] || {} : stats
@@ -172,7 +179,7 @@ export default function ContainerDetails() {
         </Stat>
         <Stat label="Image" value={valueAt(container, ['image', 'configuration.image.reference', 'raw.configuration.image.reference'])} />
         <Stat label="Command" value={valueAt(container, ['command', 'configuration.command', 'raw.configuration.command'])} />
-        <Stat label="Created" value={valueAt(container, ['created', 'created_at'])} />
+        <Stat label="Created" value={formatDate(valueAt(container, ['created', 'created_at', 'raw.configuration.creationDate']))} />
       </div>
 
       <DetailsTabs tabs={TABS} value={tab} onChange={setTab} />

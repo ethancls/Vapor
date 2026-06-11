@@ -113,10 +113,10 @@ func (m *shellSessionManager) create(ownerID, kind, instance string) (*shellSess
 	switch kind {
 	case "container":
 		cmd = exec.Command("container", "exec", "-i", "-t", instance, "sh") //nolint:gosec
-	case "machine":
+	case "machine", "instance":
 		cmd = exec.Command("container", "machine", "run", "-n", instance, "-i", "-t") //nolint:gosec
 	default:
-		cmd = exec.Command("multipass", "shell", instance) //nolint:gosec
+		return nil, fmt.Errorf("unsupported shell kind %q", kind)
 	}
 	ptmx, err := pty.Start(cmd)
 	if err != nil {

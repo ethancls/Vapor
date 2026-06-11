@@ -27,68 +27,6 @@ func (srv *Server) handleContainerSystem(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func (srv *Server) handleContainerCommands(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		cmds := container.SortedCommands()
-		items := make([]map[string]any, 0, len(cmds))
-		for _, cmd := range cmds {
-			items = append(items, map[string]any{
-				"name":     cmd,
-				"mutating": container.MutatingCommands[cmd],
-			})
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"commands": items})
-	case http.MethodPost:
-		var body struct {
-			Command         string         `json:"command"`
-			Args            []string       `json:"args"`
-			Options         map[string]any `json:"options"`
-			Stdin           string         `json:"stdin"`
-			ConfirmMutation bool           `json:"confirm_mutation"`
-		}
-		if !decodeBody(w, r, &body) {
-			return
-		}
-		body.Command = strings.Join(strings.Fields(body.Command), " ")
-		if !container.SupportedCommands[body.Command] {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "unsupported command"})
-			return
-		}
-		if container.MutatingCommands[body.Command] && !body.ConfirmMutation {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "mutating command requires confirmation"})
-			return
-		}
-		res, err := srv.mp.Run(r.Context(), body.Command, body.Args, body.Options, body.Stdin)
-		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
-			return
-		}
-		if container.MutatingCommands[body.Command] {
-			srv.mp.InvalidateCache()
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"result": res})
-	default:
-		methodNotAllowed(w)
-	}
-}
-
-func (srv *Server) routeContainerCommandHelp(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/container/commands/")
-	if !strings.HasSuffix(path, "/help") {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
-		return
-	}
-	command := strings.TrimSuffix(path, "/help")
-	command = strings.ReplaceAll(command, "/", " ")
-	help, err := srv.mp.CommandHelp(r.Context(), command)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"command": command, "help": help})
-}
-
 func (srv *Server) handleContainersDispatch(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -147,7 +85,7 @@ func (srv *Server) routeContainers(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 1 {
 		switch r.Method {
 		case http.MethodGet:
-			info, err := srv.mp.Inspect(r.Context(), "inspect", name)
+			info, err := srv.mp.GetContainerInfo(r.Context(), name)
 			if err != nil {
 				writeJSON(w, httpStatusFromError(err.Error()), map[string]string{"error": err.Error()})
 				return
@@ -261,16 +199,58 @@ func (srv *Server) handleLocalImages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (srv *Server) handleMachines(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		items, err := srv.mp.ListMachines(r.Context())
+		if err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"machines": items})
+	case http.MethodPost:
+		var body struct {
+			Image   string         `json:"image"`
+			Name    string         `json:"name"`
+			Args    []string       `json:"args"`
+			Options map[string]any `json:"options"`
+		}
+		if !decodeBody(w, r, &body) {
+			return
+		}
+		if body.Image == "" {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "image is required"})
+			return
+		}
+		options := cloneOptions(body.Options)
+		if body.Name != "" {
+			options["--name"] = body.Name
+		}
+		args := append([]string{body.Image}, body.Args...)
+		res, err := srv.mp.RunChecked(r.Context(), "machine create", args, options, "")
+		if err != nil {
+			srv.logAction("machine create", body.Name, "error", err.Error())
+			writeJSON(w, httpStatusFromError(err.Error()), map[string]string{"error": err.Error()})
+			return
+		}
+		srv.mp.InvalidateCache()
+		srv.logAction("machine create", body.Name, "success", "")
+		writeJSON(w, http.StatusOK, map[string]any{"status": "success", "result": res})
+	default:
+		methodNotAllowed(w)
+	}
+}
+
+func (srv *Server) handleContainerProperties(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
 	}
-	items, err := srv.mp.ListMachines(r.Context())
+	res, raw, err := srv.mp.RunJSONChecked(r.Context(), "system property list", nil, map[string]any{"--format": "json"})
 	if err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+		writeJSON(w, httpStatusFromError(err.Error()), map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"machines": items})
+	writeJSON(w, http.StatusOK, map[string]any{"properties": raw, "raw": res.Stdout})
 }
 
 func (srv *Server) routeMachines(w http.ResponseWriter, r *http.Request) {

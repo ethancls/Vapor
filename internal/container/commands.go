@@ -1,7 +1,5 @@
 package container
 
-import "sort"
-
 var SupportedCommands = map[string]bool{
 	"build": true, "copy": true, "create": true, "delete": true, "exec": true,
 	"export": true, "inspect": true, "kill": true, "list": true, "logs": true,
@@ -51,13 +49,4 @@ var MutatingCommands = map[string]bool{
 
 	"system start": true, "system stop": true,
 	"system dns create": true, "system dns delete": true, "system kernel set": true,
-}
-
-func SortedCommands() []string {
-	result := make([]string, 0, len(SupportedCommands))
-	for cmd := range SupportedCommands {
-		result = append(result, cmd)
-	}
-	sort.Strings(result)
-	return result
 }

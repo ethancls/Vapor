@@ -11,6 +11,7 @@ import ContainerDataTable from '../components/ContainerDataTable'
 function StatusBadge({ status }) {
   const cfg = {
     up:      { bg: 'transparent',            color: 'var(--running)',    border: 'var(--accent-border)', dot: 'var(--running)' },
+    configured: { bg: 'transparent',         color: 'var(--accent)',      border: 'var(--accent-border)', dot: 'var(--accent)' },
     down:    { bg: 'var(--card-2)',          color: 'var(--text-muted)', border: 'var(--border)',         dot: 'var(--text-muted)' },
     unknown: { bg: 'var(--card-2)',          color: 'var(--text-muted)', border: 'var(--border)',         dot: 'var(--text-muted)' },
   }[status] || { bg: 'var(--card-2)', color: 'var(--text-muted)', border: 'var(--border)', dot: 'var(--text-muted)' }
@@ -102,7 +103,7 @@ export default function Networks() {
     refetchInterval: 30000,
   })
 
-  const networks = data?.networks || []
+  const networks = useMemo(() => data?.networks || [], [data?.networks])
 
   const typeOptions = useMemo(() => {
     const types = [...new Set(networks.map((n) => n.type).filter(Boolean))].sort()
@@ -169,9 +170,11 @@ export default function Networks() {
           empty={query.trim() ? `No networks match "${query}"` : 'No networks available'}
           columns={[
             { key: 'name', label: 'Name', accent: false, render: networkName },
-            { key: 'type', label: 'Type', render: (item) => <span className="badge" style={{ background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent-border)' }}>{item.type}</span> },
+            { key: 'type', label: 'Mode', render: (item) => <span className="badge" style={{ background: 'var(--accent-dim)', color: 'var(--accent)', borderColor: 'var(--accent-border)', textTransform: 'uppercase' }}>{item.mode || item.type || '—'}</span> },
+            { key: 'plugin', label: 'Plugin', render: (item) => item.plugin || '—' },
             { key: 'status', label: 'Status', render: (item) => <StatusBadge status={item.status} /> },
-            { key: 'address', label: 'Address', render: (item) => item.address || '—' },
+            { key: 'address', label: 'IPv4', render: (item) => [item.ipv4_subnet, item.ipv4_gateway].filter(Boolean).join(' · ') || item.address || '—' },
+            { key: 'ipv6', label: 'IPv6', render: (item) => [item.ipv6_subnet, item.ipv6_gateway].filter(Boolean).join(' · ') || '—' },
             { key: 'instances', label: 'Instances', render: (item) => <InstancePills names={item.instances} /> },
           ]}
         />

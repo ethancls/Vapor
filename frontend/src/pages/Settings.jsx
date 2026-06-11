@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
-import CustomSelect from '../components/CustomSelect'
 import IOSToggle from '../components/IOSToggle'
 import DetailsTabs from '../components/instance-details/DetailsTabs'
 import PermissionNotice from '../components/PermissionNotice'
@@ -19,7 +18,7 @@ function parseVersion(v) {
   if (!v) return '—'
   if (typeof v === 'string') return v.trim()
   if (typeof v === 'object') {
-    const app = v.container || v['container-apiserver'] || v.multipass || v.multipassd || Object.values(v)[0]
+    const app = v.container || v['container-apiserver'] || Object.values(v)[0]
     return typeof app === 'string' ? app.trim() : JSON.stringify(v)
   }
   return String(v)
@@ -27,7 +26,7 @@ function parseVersion(v) {
 
 const SETTINGS_TABS = [
   { value: 'system',     label: 'System' },
-  { value: 'multipass',  label: 'Apple Container' },
+  { value: 'container',  label: 'Apple Container' },
   { value: 'auth',       label: 'Auth' },
   { value: 'shortcuts',  label: 'Shortcuts' },
 ]
@@ -37,6 +36,7 @@ const REDACTED_DISPLAY = '••••••••••••'
 
 function normalizeSettingsTab(tab) {
   const candidate = String(tab || '')
+  if (candidate === 'multipass') return 'container'
   return SETTINGS_TAB_VALUES.has(candidate) ? candidate : 'system'
 }
 
@@ -53,7 +53,7 @@ function SystemSection() {
   const hostQuery = useQuery({ queryKey: ['system-host'], queryFn: () => api.getHostInfo(), staleTime: 60000 })
   const healthQuery = useQuery({ queryKey: ['health'], queryFn: () => api.getHealth(), refetchInterval: 15000 })
 
-  const containerVersion = parseVersion(versionQuery.data?.version)
+  const containerVersion = versionQuery.data?.lines?.length ? versionQuery.data.lines.join('\n') : parseVersion(versionQuery.data?.version)
   const host = hostQuery.data || {}
   const health = healthQuery.data || {}
   const loading = versionQuery.isLoading || hostQuery.isLoading
@@ -84,7 +84,7 @@ function SystemSection() {
             <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
             {loading
               ? <span className="skeleton" style={{ width: 90, height: 12, borderRadius: 4 }} />
-              : <span className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: color || 'var(--text-primary)' }}>{value}</span>}
+              : <span className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: color || 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{value}</span>}
           </div>
         ))}
       </div>
@@ -92,80 +92,54 @@ function SystemSection() {
   )
 }
 
-function MultipassSection() {
-  const qc = useQueryClient()
-
-  const { data: bridgedData, isLoading: bridgedLoading } = useQuery({
-    queryKey: ['setting', 'local.bridged-network'],
-    queryFn: () => api.getSetting('local.bridged-network'),
-    staleTime: 0,
+function ContainerPropertiesSection() {
+  const propertiesQuery = useQuery({
+    queryKey: ['container-properties'],
+    queryFn: () => api.getContainerProperties(),
+    staleTime: 30000,
     retry: false,
   })
-  const { data: networksData, isLoading: networksLoading } = useQuery({
-    queryKey: ['networks'],
-    queryFn: () => api.getNetworks(),
-    staleTime: 60000,
-  })
-
-  const currentValue = bridgedData?.value?.trim() ?? ''
-  const networks = networksData?.networks ?? []
-
-  const [selected, setSelected] = useState(currentValue)
-  const [prevCurrentValue, setPrevCurrentValue] = useState(currentValue)
-  if (prevCurrentValue !== currentValue) {
-    setPrevCurrentValue(currentValue)
-    setSelected(currentValue)
-  }
-
-  const dirty = selected !== currentValue
-  const loading = bridgedLoading || networksLoading
-
-  const save = useMutation({
-    mutationFn: () => api.setSetting('local.bridged-network', selected),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['setting', 'local.bridged-network'] })
-      sileo.success({ title: 'Bridged network updated', duration: 2500 })
-    },
-    onError: (e) => sileo.error({ title: e.message }),
-  })
-
-  const networkOptions = networks.map((n) => ({
-    value: n.name,
-    label: n.name,
-    description: n.address || '—',
-  }))
+  const properties = propertiesQuery.data?.properties || {}
+  const groups = Object.entries(properties)
+    .filter(([, value]) => value && typeof value === 'object' && !Array.isArray(value))
+    .sort(([a], [b]) => a.localeCompare(b))
 
   return (
     <SectionShell>
-      <label className="input-label" htmlFor="bridged-network">Bridged network interface</label>
-      <p style={{ marginTop: 6, marginBottom: 12, maxWidth: 760, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-        Select the interface connected to your local LAN so your router can assign the VM its own local IP address,
-        allowing direct access from other devices on the same network.
-      </p>
-      {loading ? (
-        <div className="skeleton" style={{ height: 37, borderRadius: 10, marginBottom: 12, maxWidth: 380 }} />
+      {propertiesQuery.isLoading ? (
+        <div className="skeleton" style={{ height: 220, borderRadius: 12, maxWidth: 860 }} />
+      ) : propertiesQuery.isError ? (
+        <p className="mono" style={{ marginTop: 8, color: 'var(--stopped)', fontSize: 12.5 }}>
+          {propertiesQuery.error?.message || 'Failed to load Apple Container properties'}
+        </p>
       ) : (
-        <div style={{ marginBottom: 14, maxWidth: 420 }}>
-          <CustomSelect
-            id="bridged-network"
-            value={selected}
-            onChange={setSelected}
-            options={networkOptions}
-            searchable
-            placeholder="Select an interface…"
-            controlHeight={37}
-          />
+        <div style={{ display: 'grid', gap: 16, maxWidth: 900 }}>
+          {groups.map(([group, values]) => (
+            <div key={group} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, background: 'var(--card-1)' }}>
+              <p className="section-title" style={{ margin: '0 0 10px', textTransform: 'capitalize' }}>{group}</p>
+              <div style={{ display: 'grid' }}>
+                {Object.entries(values).map(([key, value], idx, arr) => (
+                  <div
+                    key={key}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(150px, 220px) 1fr',
+                      gap: 12,
+                      padding: '9px 0',
+                      borderBottom: idx < arr.length - 1 ? '1px solid var(--border)' : 'none',
+                    }}
+                  >
+                    <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{key}</span>
+                    <span className="mono" style={{ fontSize: 12.5, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+                      {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', maxWidth: 420 }}>
-        <button
-          className="btn-accent"
-          onClick={() => save.mutate()}
-          disabled={loading || !dirty || !selected || save.isPending}
-        >
-          {save.isPending ? 'Saving…' : 'Save'}
-        </button>
-      </div>
     </SectionShell>
   )
 }
@@ -565,7 +539,7 @@ export default function Settings() {
         <DetailsTabs tabs={SETTINGS_TABS} value={activeTab} onChange={handleTabChange} />
 
         {activeTab === 'system' && <SystemSection />}
-        {activeTab === 'multipass' && <MultipassSection />}
+        {activeTab === 'container' && <ContainerPropertiesSection />}
         {activeTab === 'auth' && <AuthSection currentRole={currentRole} />}
         {activeTab === 'shortcuts' && <ShortcutsSection />}
       </div>

@@ -7,6 +7,7 @@ import ContainerDataTable from '../components/ContainerDataTable'
 import CustomSelect from '../components/CustomSelect'
 import ConfirmModal from '../components/ConfirmModal'
 import BrandIcon from '../components/BrandIcon'
+import ResourceActionButton from '../components/ResourceActionButton'
 import { SkeletonTable } from '../components/Skeletons'
 
 const EMPTY_IMAGES = []
@@ -35,6 +36,13 @@ function imageTag(item) {
 
 function imageSize(item) {
   return item.size || '-'
+}
+
+function formatDate(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
 export default function Images() {
@@ -120,13 +128,15 @@ export default function Images() {
             columns={[
               { key: 'name', label: 'Image', accent: false, render: imageName },
               { key: 'tag', label: 'Tag / Digest', render: imageTag },
+              { key: 'platforms', label: 'Platforms', render: (item) => item.platforms?.length ? item.platforms.join(', ') : '-' },
               { key: 'size', label: 'Size', render: imageSize },
+              { key: 'created', label: 'Created', render: (item) => formatDate(item.created) },
             ]}
             renderActions={(item) => {
               const name = item.name
               return (
                 <div style={{ display: 'inline-flex', gap: 5 }}>
-                  <button className="icon-btn danger" title="Delete image" onClick={() => setDeleteImage(name)}><Trash2 size={14} /></button>
+                  <ResourceActionButton icon={<Trash2 size={14} />} label="Delete image" color="var(--stopped)" onClick={() => setDeleteImage(name)} />
                 </div>
               )
             }}
@@ -167,7 +177,7 @@ export default function Images() {
           ]}
           renderActions={(item) => {
             const ref = item.image || item.repo_name || item.name
-            return <button className="icon-btn" title="Pull image" onClick={() => pull(ref)}><Download size={14} /></button>
+            return <ResourceActionButton icon={<Download size={14} />} label="Pull image" color="var(--running)" onClick={() => pull(ref)} />
           }}
         />
       </section>
@@ -185,4 +195,3 @@ export default function Images() {
     </div>
   )
 }
-

@@ -127,18 +127,6 @@ func (c *Client) EnsureSystemRunning(ctx context.Context) SystemState {
 	return c.SystemState(ctx)
 }
 
-func (c *Client) CommandHelp(ctx context.Context, command string) (string, error) {
-	command = normalizeCommand(command)
-	if !SupportedCommands[command] {
-		return "", &CommandError{Message: "unsupported container command: " + command, Argv: []string{c.binary, command}}
-	}
-	res, err := c.RunChecked(ctx, command, nil, map[string]any{"--help": true}, "")
-	if err != nil {
-		return "", err
-	}
-	return res.Stdout, nil
-}
-
 func (c *Client) Run(ctx context.Context, command string, args []string, options map[string]any, stdin string) (*CommandResult, error) {
 	command = normalizeCommand(command)
 	if !SupportedCommands[command] {
@@ -307,15 +295,7 @@ func (c *Client) BuilderStatus(ctx context.Context) (any, string, error) {
 }
 
 func (c *Client) Inspect(ctx context.Context, command, name string) (map[string]any, error) {
-	if command == "machine inspect" {
-		return c.inspectPlainJSON(ctx, command, name)
-	}
-
-	_, raw, err := c.RunJSONChecked(ctx, command, []string{name}, map[string]any{"--format": "json"})
-	if err != nil {
-		return nil, err
-	}
-	return firstJSONMap(raw), nil
+	return c.inspectPlainJSON(ctx, command, name)
 }
 
 func (c *Client) inspectPlainJSON(ctx context.Context, command, name string) (map[string]any, error) {
@@ -360,6 +340,14 @@ func (c *Client) GetInstanceInfo(ctx context.Context, name string) (map[string]a
 		return nil, err
 	}
 	return normalizeMachine(info), nil
+}
+
+func (c *Client) GetContainerInfo(ctx context.Context, name string) (map[string]any, error) {
+	info, err := c.Inspect(ctx, "inspect", name)
+	if err != nil {
+		return nil, err
+	}
+	return normalizeContainer(info), nil
 }
 
 func (c *Client) listJSON(ctx context.Context, command string, extraOptions map[string]any) ([]map[string]any, error) {
@@ -552,44 +540,59 @@ func normalizeVolume(item map[string]any) map[string]any {
 }
 
 func normalizeNetwork(item map[string]any) map[string]any {
-	name := firstString(item, "name", "id")
+	config := mapValue(item, "configuration")
+	statusInfo := mapValue(item, "status")
+	name := firstString(config, "name")
+	if name == "" {
+		name = firstString(item, "name", "id")
+	}
 	status := firstString(item, "status", "state")
 	if status == "" {
-		status = "unknown"
+		if firstString(statusInfo, "ipv4Subnet", "ipv6Subnet", "ipv4Gateway", "ipv6Gateway") != "" {
+			status = "up"
+		} else {
+			status = "configured"
+		}
 	}
-	netType := firstString(item, "type", "driver")
+	netType := firstString(config, "mode")
 	if netType == "" {
-		netType = "unknown"
+		netType = firstString(item, "type", "driver")
 	}
+	plugin := firstString(config, "plugin")
 
-	address := ""
-	if addr, ok := item["address"]; ok {
+	address := firstString(statusInfo, "ipv4Subnet", "ipv4Gateway", "ipv6Subnet", "ipv6Gateway")
+	if address == "" {
+		addr := item["address"]
 		switch v := addr.(type) {
 		case string:
 			address = v
 		case map[string]any:
-			// Handle complex address objects like {ipv4Gateway, ipv4Subnet, ...}
 			if subnet := firstString(v, "ipv4Subnet", "subnet"); subnet != "" {
 				address = subnet
 			} else if gateway := firstString(v, "ipv4Gateway", "gateway"); gateway != "" {
 				address = gateway
-			} else {
-				// Fallback to JSON if we can't find a standard field
-				if b, err := json.Marshal(v); err == nil {
-					address = string(b)
-				}
+			} else if b, err := json.Marshal(v); err == nil {
+				address = string(b)
 			}
 		}
 	}
 
 	return map[string]any{
-		"id":        name,
-		"name":      name,
-		"status":    strings.ToLower(status),
-		"type":      netType,
-		"address":   address,
-		"instances": item["instances"],
-		"raw":       item,
+		"id":           firstNonEmpty(firstString(item, "id"), name),
+		"name":         name,
+		"status":       strings.ToLower(status),
+		"type":         netType,
+		"mode":         netType,
+		"plugin":       plugin,
+		"address":      address,
+		"ipv4_subnet":  firstString(statusInfo, "ipv4Subnet"),
+		"ipv4_gateway": firstString(statusInfo, "ipv4Gateway"),
+		"ipv6_subnet":  firstString(statusInfo, "ipv6Subnet"),
+		"ipv6_gateway": firstString(statusInfo, "ipv6Gateway"),
+		"labels":       mapValue(config, "labels"),
+		"instances":    item["instances"],
+		"created":      firstString(config, "creationDate"),
+		"raw":          item,
 	}
 }
 
@@ -598,7 +601,6 @@ func normalizeImage(item map[string]any) map[string]any {
 	var name, tag string
 	var size int64
 
-	// Handle the structure from the user's JSON
 	config, ok := item["configuration"].(map[string]any)
 	if ok {
 		fullName := firstString(config, "name")
@@ -619,7 +621,8 @@ func normalizeImage(item map[string]any) map[string]any {
 		}
 	}
 
-	// Variants contain the actual architecture-specific images and their sizes
+	platforms := []string{}
+	labels := map[string]any{}
 	if variants, ok := item["variants"].([]any); ok {
 		for _, v := range variants {
 			if vm, ok := v.(map[string]any); ok {
@@ -627,15 +630,18 @@ func normalizeImage(item map[string]any) map[string]any {
 				if vSize > size {
 					size = vSize
 				}
-				// If we still don't have a name/tag, try to get it from variant labels if they exist
+				if platform := platformString(mapValue(vm, "platform")); platform != "" {
+					platforms = appendUnique(platforms, platform)
+				}
 				if name == "" {
 					if vConfig, ok := vm["config"].(map[string]any); ok {
 						if innerConfig, ok := vConfig["config"].(map[string]any); ok {
-							if labels, ok := innerConfig["labels"].(map[string]any); ok {
-								if title := firstString(labels, "org.opencontainers.image.title"); title != "" {
+							if variantLabels := labelsValue(innerConfig); len(variantLabels) > 0 {
+								labels = variantLabels
+								if title := firstString(variantLabels, "org.opencontainers.image.title"); title != "" {
 									name = title
 								}
-								if version := firstString(labels, "org.opencontainers.image.version"); version != "" {
+								if version := firstString(variantLabels, "org.opencontainers.image.version"); version != "" {
 									tag = version
 								}
 							}
@@ -657,12 +663,18 @@ func normalizeImage(item map[string]any) map[string]any {
 	}
 
 	return map[string]any{
-		"id":      id,
-		"name":    name,
-		"tag":     tag,
-		"size":    formatSize(size),
-		"rawSize": size,
-		"raw":     item,
+		"id":         id,
+		"name":       name,
+		"tag":        tag,
+		"size":       formatSize(size),
+		"rawSize":    size,
+		"created":    firstString(config, "creationDate"),
+		"digest":     firstString(mapValue(config, "descriptor"), "digest"),
+		"media_type": firstString(mapValue(config, "descriptor"), "mediaType"),
+		"platforms":  platforms,
+		"labels":     labels,
+		"source_url": firstString(labels, "org.opencontainers.image.source", "org.opencontainers.image.url"),
+		"raw":        item,
 	}
 }
 
@@ -683,13 +695,21 @@ func formatSize(bytes int64) string {
 }
 
 func normalizeContainer(item map[string]any) map[string]any {
-	name := firstString(item, "name", "names", "container", "id")
-	state := firstString(item, "state", "status")
-	image := firstString(item, "image", "imageRef", "image_reference")
+	config := mapValue(item, "configuration")
+	status := mapValue(item, "status")
+	resources := mapValue(config, "resources")
+	imageInfo := mapValue(config, "image")
+	name := firstString(config, "id")
+	if name == "" {
+		name = firstString(item, "name", "names", "container", "id")
+	}
+	state := firstString(status, "state")
+	if state == "" {
+		state = firstString(item, "state", "status")
+	}
+	image := firstString(imageInfo, "reference", "name")
 	if image == "" {
-		if imageInfo, ok := item["image"].(map[string]any); ok {
-			image = firstString(imageInfo, "reference", "name")
-		}
+		image = firstString(item, "image", "imageRef", "image_reference")
 	}
 	id := firstString(item, "id", "containerID", "container_id")
 	if id == "" {
@@ -701,7 +721,10 @@ func normalizeContainer(item map[string]any) map[string]any {
 	if name == "" {
 		name = id
 	}
-	memoryTotal := toInt64(item["memory"])
+	memoryTotal := toInt64(resources["memoryInBytes"])
+	if memoryTotal == 0 {
+		memoryTotal = toInt64(resources["memory"])
+	}
 	if memoryTotal == 0 {
 		memoryTotal = toInt64(item["memoryLimit"])
 	}
@@ -713,18 +736,40 @@ func normalizeContainer(item map[string]any) map[string]any {
 	if ip := firstString(item, "ipAddress", "ip", "address"); ip != "" {
 		ipv4 = append(ipv4, ip)
 	}
+	for _, network := range listValue(status, "networks") {
+		if ip := firstString(network, "address", "ipAddress", "ipv4Address"); ip != "" {
+			ipv4 = appendUnique(ipv4, ip)
+		}
+	}
+	cpus := toInt64(resources["cpus"])
+	if cpus == 0 {
+		cpus = toInt64(item["cpus"])
+	}
 	return map[string]any{
-		"id":      id,
-		"name":    name,
-		"state":   titleState(state),
-		"status":  state,
-		"image":   image,
-		"raw":     item,
-		"ipv4":    ipv4,
-		"cpus":    toInt64(item["cpus"]),
-		"memory":  map[string]any{"total": memoryTotal, "used": int64(0)},
-		"disk":    map[string]any{"total": diskTotal, "used": int64(0)},
-		"created": firstString(item, "created", "createdAt", "created_at", "createdDate"),
+		"id":          id,
+		"name":        name,
+		"state":       titleState(state),
+		"status":      state,
+		"image":       image,
+		"raw":         item,
+		"ipv4":        ipv4,
+		"cpus":        cpus,
+		"memory":      map[string]any{"total": memoryTotal, "used": int64(0)},
+		"disk":        map[string]any{"total": diskTotal, "used": int64(0)},
+		"created":     firstNonEmpty(firstString(config, "creationDate"), firstString(item, "created", "createdAt", "created_at", "createdDate")),
+		"started":     firstString(status, "startedDate"),
+		"networks":    config["networks"],
+		"ports":       config["publishedPorts"],
+		"mounts":      config["mounts"],
+		"platform":    config["platform"],
+		"read_only":   config["readOnly"],
+		"rosetta":     config["rosetta"],
+		"ssh":         config["ssh"],
+		"use_init":    config["useInit"],
+		"runtime":     firstString(config, "runtimeHandler"),
+		"command":     firstString(mapValue(config, "initProcess"), "executable"),
+		"arguments":   mapValue(config, "initProcess")["arguments"],
+		"environment": mapValue(config, "initProcess")["environment"],
 	}
 }
 
@@ -771,6 +816,70 @@ func normalizeMachine(item map[string]any) map[string]any {
 		"started":  firstString(item, "started", "startedAt", "started_at", "startedDate"),
 		"platform": item["platform"],
 	}
+}
+
+func mapValue(m map[string]any, key string) map[string]any {
+	if m == nil {
+		return map[string]any{}
+	}
+	if value, ok := m[key].(map[string]any); ok {
+		return value
+	}
+	return map[string]any{}
+}
+
+func labelsValue(m map[string]any) map[string]any {
+	for _, key := range []string{"labels", "Labels"} {
+		if labels, ok := m[key].(map[string]any); ok {
+			return labels
+		}
+	}
+	return map[string]any{}
+}
+
+func listValue(m map[string]any, key string) []map[string]any {
+	if m == nil {
+		return nil
+	}
+	if items, ok := m[key].([]any); ok {
+		return mapList(items)
+	}
+	return nil
+}
+
+func platformString(platform map[string]any) string {
+	os := firstString(platform, "os")
+	arch := firstString(platform, "architecture", "arch")
+	variant := firstString(platform, "variant")
+	if os == "" && arch == "" {
+		return ""
+	}
+	value := strings.Trim(os+"/"+arch, "/")
+	if variant != "" {
+		value += "/" + variant
+	}
+	return value
+}
+
+func appendUnique(values []string, next string) []string {
+	if next == "" {
+		return values
+	}
+	for _, value := range values {
+		if value == next {
+			return values
+		}
+	}
+	return append(values, next)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func firstString(m map[string]any, keys ...string) string {

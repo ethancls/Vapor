@@ -48,6 +48,13 @@ function machineNetwork(item) {
   return item.raw?.ipAddress || '—'
 }
 
+function formatDate(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+}
+
 export default function Instances() {
   const qc = useQueryClient()
   const location = useLocation()
@@ -173,7 +180,7 @@ export default function Instances() {
             { key: 'memory', label: 'RAM', render: machineMemory },
             { key: 'disk', label: 'Disk', render: machineDisk },
             { key: 'network', label: 'IP', render: machineNetwork },
-            { key: 'created', label: 'Created' },
+            { key: 'created', label: 'Created', render: (item) => formatDate(item.created || item.raw?.createdDate) },
           ]}
           renderActions={(item) => {
             const name = machineNameText(item)

@@ -3,6 +3,7 @@ import { Clipboard, ExternalLink, Play, Terminal, TriangleAlert } from 'lucide-r
 import { sileo } from 'sileo'
 import { api } from '../api/client'
 import Modal from './Modal'
+import ResourceActionButton from './ResourceActionButton'
 
 function copyCommand(command) {
   navigator.clipboard?.writeText(command)
@@ -25,9 +26,7 @@ function CommandRow({ command, label }) {
         <p className="section-label" style={{ margin: '0 0 4px' }}>{label}</p>
         <code className="mono" style={{ color: 'var(--text-primary)', fontSize: 12, overflowWrap: 'anywhere' }}>{command}</code>
       </div>
-      <button type="button" className="icon-btn" title="Copy command" onClick={() => copyCommand(command)}>
-        <Clipboard size={14} />
-      </button>
+      <ResourceActionButton icon={<Clipboard size={14} />} label="Copy command" color="var(--accent)" onClick={() => copyCommand(command)} />
     </div>
   )
 }

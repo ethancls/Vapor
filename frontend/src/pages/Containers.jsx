@@ -25,6 +25,13 @@ function displayState(item) {
   return item.state || item.status || item.raw?.status || '-'
 }
 
+function formatDate(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+}
+
 export default function Containers() {
   const qc = useQueryClient()
   const location = useLocation()
@@ -134,7 +141,7 @@ export default function Containers() {
             },
             { key: 'state', label: 'State', render: displayState },
             { key: 'image', label: 'Image', render: displayImage, maxWidth: 360 },
-            { key: 'created', label: 'Created' },
+            { key: 'created', label: 'Created', render: (item) => formatDate(item.created || item.raw?.configuration?.creationDate) },
           ]}
           renderActions={(item) => {
             const name = displayNameText(item)

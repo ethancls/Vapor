@@ -47,6 +47,13 @@ function formatBytes(bytes) {
   return `${value} B`
 }
 
+function formatDate(value) {
+  if (!value || value === '—') return value || '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+}
+
 function Stat({ label, value, accent = false, children = null }) {
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', height: 62, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -155,7 +162,7 @@ export default function MachineDetails() {
         <Stat label="Disk" value={formatBytes(disk.total)} />
         <Stat label="Network" value={ips.length ? ips.join(', ') : 'No IPv4'} />
         <Stat label="Image" value={machineValue(machine, ['image', 'kernel', 'configuration.kernel'])} />
-        <Stat label="Started" value={machineValue(machine, ['started', 'started_at', 'raw.startedDate'], machineValue(machine, ['created', 'created_at', 'raw.createdDate']))} />
+        <Stat label="Started" value={formatDate(machineValue(machine, ['started', 'started_at', 'raw.startedDate'], machineValue(machine, ['created', 'created_at', 'raw.createdDate'])))} />
       </div>
 
       <DetailsTabs tabs={TABS} value={tab} onChange={setTab} />

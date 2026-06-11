@@ -12,7 +12,7 @@ import (
 // BroadcastFn is called whenever fresh instance data is available.
 type BroadcastFn func(instances []map[string]any)
 
-// Poller periodically polls multipass instances and broadcasts updates.
+// Poller periodically polls Apple Container machines and broadcasts updates.
 type Poller struct {
 	client    *container.Client
 	metrics   *store.MetricsStore

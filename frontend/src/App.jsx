@@ -17,7 +17,7 @@ import Networks from './pages/Networks'
 import Images from './pages/Images'
 import Volumes from './pages/Volumes'
 import Builder from './pages/Builder'
-import Commands from './pages/Commands'
+import NewInstance from './pages/NewInstance'
 import Users from './pages/Users'
 import Logs from './pages/Logs'
 import Settings from './pages/Settings'
@@ -34,13 +34,12 @@ function routeTitle(pathname) {
   if (path === '/containers') return 'Containers'
   if (path.startsWith('/containers/')) return decodeURIComponent(path.slice('/containers/'.length)) || 'Container'
   if (path === '/instances') return 'Machines'
-  if (path === '/instances/new') return 'New Machine'
+  if (path === '/instances/new') return 'New'
   if (path.startsWith('/instances/')) return decodeURIComponent(path.slice('/instances/'.length)) || 'Machine'
   if (path === '/networks') return 'Networks'
   if (path === '/images') return 'Images'
   if (path === '/volumes') return 'Volumes'
   if (path === '/builder') return 'Builder'
-  if (path === '/commands') return 'Commands'
   if (path === '/users') return 'Users'
   if (path === '/logs') return 'Activity'
   if (path === '/settings') return 'Settings'
@@ -90,7 +89,7 @@ function AppInner({ onLogout }) {
   })
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const goNewInstance = useCallback(
-    () => navigate('/containers', { state: { from: location.pathname } }),
+    () => navigate('/instances/new', { state: { from: location.pathname } }),
     [navigate, location.pathname]
   )
 
@@ -120,13 +119,12 @@ function AppInner({ onLogout }) {
     if (path === '/containers') return 'Containers'
     if (path.startsWith('/containers/')) return 'Containers'
     if (path === '/instances') return 'Machines'
-    if (path === '/instances/new') return 'New Machine'
+    if (path === '/instances/new') return 'New'
     if (path.startsWith('/instances/')) return 'Machines'
     if (path === '/networks') return 'Networks'
     if (path === '/images') return 'Images'
     if (path === '/volumes') return 'Volumes'
     if (path === '/builder') return 'Builder'
-    if (path === '/commands') return 'Commands'
     if (path === '/users') return 'Users'
     if (path === '/logs') return 'Activity'
     if (path === '/settings') return 'Settings'
@@ -219,13 +217,12 @@ function AppInner({ onLogout }) {
           <Route path="/containers" element={<Containers />} />
           <Route path="/containers/:name" element={<ContainerDetails />} />
           <Route path="/instances" element={<Instances onNewInstance={goNewInstance} />} />
-          <Route path="/instances/new" element={<Navigate to="/instances" replace />} />
+          <Route path="/instances/new" element={<NewInstance />} />
           <Route path="/instances/:name" element={<MachineDetails />} />
           <Route path="/networks" element={<Networks />} />
           <Route path="/images" element={<Images />} />
           <Route path="/volumes" element={<Volumes />} />
           <Route path="/builder" element={<Builder />} />
-          <Route path="/commands" element={<Commands />} />
           <Route path="/users" element={<Users />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/settings" element={<Settings />} />

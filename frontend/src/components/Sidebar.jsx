@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { version as APP_VERSION } from '../../package.json'
-import { Boxes, Plus, Sun, Moon, Monitor, ChevronDown, ChevronLeft, EthernetPort, LogOut, Settings, Users, History, Layers2, LayoutGrid, Lock, Github, Package, Database, Hammer, TerminalSquare } from 'lucide-react'
+import { Boxes, Plus, Sun, Moon, Monitor, ChevronDown, ChevronLeft, EthernetPort, LogOut, Settings, Users, History, Layers2, LayoutGrid, Lock, Github, Package, Database, Hammer } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTheme } from '../contexts/useTheme'
 import { api, authLogout } from '../api/client'
@@ -17,7 +17,6 @@ const NAV = [
   { group: 'Resources', to: '/images',    Icon: Layers2, label: 'Images' },
   { group: 'Resources', to: '/volumes',   Icon: Database, label: 'Volumes' },
   { group: 'System',    to: '/builder',   Icon: Hammer, label: 'Builder' },
-  { group: 'System',    to: '/commands',  Icon: TerminalSquare, label: 'Commands' },
   { group: 'System',    to: '/users',     Icon: Users, label: 'Users' },
   { group: 'System',    to: '/logs',      Icon: History, label: 'Logs' },
   { group: 'System',    to: '/settings',  Icon: Settings, label: 'Settings' },
