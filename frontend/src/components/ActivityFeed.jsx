@@ -3,11 +3,11 @@ import { Pause, Trash2, Rocket, Activity, Power, PowerOff, Files, Key } from 'lu
 import { useActivity } from '../hooks/useActivity'
 
 const ACTION_META = {
-  start:    { Icon: Power,     color: 'var(--running)',   bg: 'rgba(181,242,61,0.08)',  accent: '#b5f23d' },
+  start:    { Icon: Power,     color: 'var(--running)',   bg: 'rgba(111,168,255,0.10)', accent: '#6fa8ff' },
   stop:     { Icon: PowerOff,   color: 'var(--stopped)',   bg: 'rgba(240,71,71,0.08)',   accent: '#f04747' },
   suspend:  { Icon: Pause,    color: 'var(--suspended)', bg: 'rgba(255,159,10,0.08)',  accent: '#ff9f0a' },
   delete:   { Icon: Trash2,   color: '#555',             bg: 'rgba(255,255,255,0.04)', accent: '#555'    },
-  launch:   { Icon: Rocket,   color: '#60a5fa',          bg: 'rgba(96,165,250,0.08)',  accent: '#60a5fa' },
+  launch:   { Icon: Rocket,   color: '#ff7bdc',          bg: 'rgba(255,123,220,0.10)', accent: '#ff7bdc' },
   snapshot: { Icon: Files,   color: '#a78bfa',          bg: 'rgba(167,139,250,0.08)', accent: '#a78bfa' },
   ssh_password:      { Icon: Key, color: '#555',             bg: 'rgba(255,255,255,0.04)', accent: '#555'    },
 }
@@ -129,7 +129,7 @@ export default function ActivityFeed() {
                       <span style={{
                         fontSize: 9.5, fontWeight: 700, lineHeight: 1,
                         color: success ? 'var(--running)' : 'var(--stopped)',
-                        background: success ? 'rgba(181,242,61,0.08)' : 'rgba(240,71,71,0.08)',
+                        background: success ? 'rgba(111,168,255,0.10)' : 'rgba(240,71,71,0.08)',
                         padding: '2px 6px', borderRadius: 100,
                       }}>
                         {e.status}

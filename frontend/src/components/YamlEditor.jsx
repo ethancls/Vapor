@@ -30,16 +30,16 @@ const yamlLintSource = linter(view => {
 const darkTheme = EditorView.theme({
   '&':                        { background: '#161616', color: '#abb2bf', borderRadius: '10px' },
   '&.cm-focused':             { outline: 'none' },
-  '.cm-content':              { padding: '10px 0', caretColor: '#b5f23d' },
+  '.cm-content':              { padding: '10px 0', caretColor: '#6fa8ff' },
   '.cm-line':                 { padding: '0 14px' },
   '.cm-gutters':              { background: '#111111', borderRight: '1px solid rgba(255,255,255,0.07)', color: '#444', paddingRight: '2px', borderRadius: '10px 0 0 10px' },
   '.cm-lineNumbers .cm-gutterElement': { padding: '0 10px', minWidth: '36px', fontSize: '11px', color: '#444' },
   '.cm-gutter.cm-lineNumbers': { minWidth: '44px' },
   '.cm-activeLine':           { background: 'rgba(255,255,255,0.025)' },
   '.cm-activeLineGutter':     { background: 'rgba(255,255,255,0.025)', color: '#666' },
-  '&.cm-focused .cm-cursor': { borderLeftColor: '#b5f23d' },
-  '.cm-selectionBackground':  { background: 'rgba(181,242,61,0.14)' },
-  '&.cm-focused .cm-selectionBackground': { background: 'rgba(181,242,61,0.14)' },
+  '&.cm-focused .cm-cursor': { borderLeftColor: '#6fa8ff' },
+  '.cm-selectionBackground':  { background: 'rgba(111,168,255,0.16)' },
+  '&.cm-focused .cm-selectionBackground': { background: 'rgba(255,123,220,0.16)' },
   '.cm-lintRange-error':      { backgroundImage: 'none', textDecoration: 'underline wavy #f04747', textDecorationSkipInk: 'none' },
   '.cm-lintRange-warning':    { backgroundImage: 'none', textDecoration: 'underline wavy #ff9f0a' },
   '.cm-gutter.cm-gutter-lint': { width: '16px' },
@@ -104,7 +104,7 @@ export default function YamlEditor({ value, onChange, minHeight = 280 }) {
     : [langYaml(), lintGutter(), yamlLintSource, lightTheme],
   [isDark])
 
-  const focusBorder  = isDark ? 'rgba(181,242,61,0.4)'  : 'rgba(101,168,0,0.45)'
+  const focusBorder  = isDark ? 'rgba(111,168,255,0.45)'  : 'rgba(63,125,255,0.38)'
   const idleBorder   = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'
 
   return (

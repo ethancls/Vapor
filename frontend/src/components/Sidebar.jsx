@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { version as APP_VERSION } from '../../package.json'
-import { Boxes, Plus, Sun, Moon, Monitor, ChevronDown, ChevronLeft, Files, EthernetPort, CircleFadingArrowUp, Check, LogOut, Settings, Users, History, Layers2, LayoutGrid, Lock, Github } from 'lucide-react'
+import { Boxes, Plus, Sun, Moon, Monitor, ChevronDown, ChevronLeft, EthernetPort, LogOut, Settings, Users, History, Layers2, LayoutGrid, Lock, Github, Package, Database, Hammer, TerminalSquare } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTheme } from '../contexts/useTheme'
 import { api, authLogout } from '../api/client'
@@ -11,11 +11,13 @@ import useShortcutPlatform from '../hooks/useShortcutPlatform'
 
 const NAV = [
   { group: null,        to: '/dashboard', Icon: LayoutGrid, label: 'Dashboard' },
-  { group: 'Compute',   to: '/instances', Icon: Boxes, label: 'Instances', matchPaths: ['/instances', '/instances/new'], matchPrefix: '/instances/' },
-  { group: 'Compute',   to: '/snapshots', Icon: Files, label: 'Snapshots' },
-  { group: 'Compute',   to: '/updates',   Icon: CircleFadingArrowUp, label: 'Updates' },
+  { group: 'Compute',   to: '/containers', Icon: Package, label: 'Containers' },
+  { group: 'Compute',   to: '/instances', Icon: Boxes, label: 'Machines', matchPaths: ['/instances', '/instances/new'], matchPrefix: '/instances/' },
   { group: 'Resources', to: '/networks',  Icon: EthernetPort, label: 'Networks' },
   { group: 'Resources', to: '/images',    Icon: Layers2, label: 'Images' },
+  { group: 'Resources', to: '/volumes',   Icon: Database, label: 'Volumes' },
+  { group: 'System',    to: '/builder',   Icon: Hammer, label: 'Builder' },
+  { group: 'System',    to: '/commands',  Icon: TerminalSquare, label: 'Commands' },
   { group: 'System',    to: '/users',     Icon: Users, label: 'Users' },
   { group: 'System',    to: '/logs',      Icon: History, label: 'Logs' },
   { group: 'System',    to: '/settings',  Icon: Settings, label: 'Settings' },
@@ -76,18 +78,6 @@ export default function Sidebar({
   const effectiveCollapsed = !disableCollapse && collapsed
   const collapseShortcut = isApple ? '⌘B' : 'Ctrl+B'
 
-  const { data: updatesData } = useQuery({
-    queryKey: ['updates'],
-    queryFn: () => api.getUpdates(),
-    refetchInterval: 120000,
-    staleTime: 60000,
-    retry: false,
-  })
-  const updatesItems    = updatesData?.updates || []
-  const outdatedCount   = updatesItems.filter(u => (u.upgradable || 0) > 0).length
-  const allCheckedAndOk = updatesItems.length > 0
-    && updatesItems.every(u => u.checked)
-    && outdatedCount === 0
   const { data: meData } = useQuery({
     queryKey: ['current-user'],
     queryFn: () => api.getCurrentUser(),
@@ -209,7 +199,6 @@ export default function Sidebar({
                   ? 'nav-settings'
                   : undefined
           const isActive = (matchPaths && matchPaths.includes(pathname)) || (matchPrefix && pathname.startsWith(matchPrefix)) || pathname === to
-          const shouldPulseUpdatesIcon = to === '/updates' && outdatedCount > 0
           const prevGroup = idx > 0 ? navEntries[idx - 1].group : null
           const startsGroup = !!group && group !== prevGroup
           return (
@@ -233,18 +222,12 @@ export default function Sidebar({
                   className={() => `nav-item${isActive ? ' active' : ''}`}
                   onClick={() => onNavigate?.()}
                 >
-                  {/* Icon — updates get fluid cyan fill animation */}
-                  <span className={`sidebar-nav-icon-wrap${shouldPulseUpdatesIcon ? ' sidebar-nav-icon-wrap-updates-pulse' : ''}`}>
+                  <span className="sidebar-nav-icon-wrap">
                     <item.Icon size={22} />
-                    {shouldPulseUpdatesIcon && <span className="sidebar-nav-updates-dot" aria-hidden="true" />}
                   </span>
 
-                  {/* Label — with health check badge when expanded */}
                   <span className="sidebar-label sidebar-nav-label">
                     {label}
-                    {to === '/updates' && !effectiveCollapsed && allCheckedAndOk && (
-                      <Check size={11} className="sidebar-nav-updates-check" />
-                    )}
                   </span>
                 </NavLink>
               ) : (

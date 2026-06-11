@@ -1,5 +1,5 @@
 [Unit]
-Description=Eve — Multipass Dashboard
+Description=Eve — Apple Container Dashboard
 After=network.target
 
 [Service]

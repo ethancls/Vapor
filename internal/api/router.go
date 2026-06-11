@@ -69,7 +69,6 @@ func (srv *Server) Build(frontendFS embed.FS) http.Handler {
 
 	// WebSocket (session required)
 	mux.Handle("/ws/instances", srv.requireSession(http.HandlerFunc(srv.HandleWS)))
-	mux.Handle("/ws/instances/", srv.requireSession(http.HandlerFunc(srv.handleShellWS)))
 
 	// API routes (session required)
 	apiMux := http.NewServeMux()
@@ -77,28 +76,34 @@ func (srv *Server) Build(frontendFS embed.FS) http.Handler {
 	apiMux.HandleFunc("/api/system/version", srv.handleVersion)
 	apiMux.HandleFunc("/api/system/host", srv.handleHostInfo)
 	apiMux.HandleFunc("/api/system/commands", srv.handleCommands)
+	apiMux.HandleFunc("/api/container/system", srv.handleContainerSystem)
+	apiMux.HandleFunc("/api/container/commands", srv.handleContainerCommands)
 	apiMux.HandleFunc("/api/fs/browse", srv.handleFsBrowse)
 	apiMux.HandleFunc("/api/fs/check-url", srv.handleFsCheckURL)
 	apiMux.HandleFunc("/api/images", srv.handleImages)
+	apiMux.HandleFunc("/api/images/local", srv.handleLocalImages)
+	apiMux.HandleFunc("/api/registry/search", srv.handleRegistrySearch)
+	apiMux.HandleFunc("/api/registry/tags", srv.handleRegistryTags)
+	apiMux.HandleFunc("/api/registries", srv.handleRegistries)
 	apiMux.HandleFunc("/api/networks", srv.handleNetworks)
-	apiMux.HandleFunc("/api/snapshots", srv.handleGetAllSnapshots)
-	apiMux.HandleFunc("/api/transfers", srv.handleTransfer)
-	apiMux.HandleFunc("/api/aliases", srv.handleAliasesDispatch)
-	apiMux.HandleFunc("/api/aliases/prefer", srv.handlePreferAlias)
+	apiMux.HandleFunc("/api/volumes", srv.handleVolumes)
+	apiMux.HandleFunc("/api/builder", srv.handleBuilder)
+	apiMux.HandleFunc("/api/containers", srv.handleContainersDispatch)
+	apiMux.HandleFunc("/api/machines", srv.handleMachines)
 	apiMux.HandleFunc("/api/settings/keys", srv.handleSettingsKeys)
 	apiMux.HandleFunc("/api/settings", srv.handleGetSettings)
 	apiMux.HandleFunc("/api/app/auth", srv.handleAppAuthSettings)
 	apiMux.HandleFunc("/api/activity", srv.handleGetActivity)
 	apiMux.HandleFunc("/api/stats", srv.handleGetStats)
-	apiMux.HandleFunc("/api/updates", srv.handleGetUpdates)
 	apiMux.HandleFunc("/api/templates", srv.handleTemplatesDispatch)
 	apiMux.HandleFunc("/api/instances", srv.handleInstancesDispatch)
 	apiMux.HandleFunc("/api/users", srv.handleUsersDispatch)
 
 	// Parameterised routes via prefix matching
+	apiMux.HandleFunc("/api/container/commands/", srv.routeContainerCommandHelp)
+	apiMux.HandleFunc("/api/containers/", srv.routeContainers)
+	apiMux.HandleFunc("/api/machines/", srv.routeMachines)
 	apiMux.HandleFunc("/api/system/commands/", srv.routeCommandHelp)
-	apiMux.HandleFunc("/api/snapshots/", srv.routeSnapshots)
-	apiMux.HandleFunc("/api/aliases/", srv.routeAliasDelete)
 	apiMux.HandleFunc("/api/settings/", srv.routeSettings)
 	apiMux.HandleFunc("/api/templates/", srv.routeTemplateDelete)
 	apiMux.HandleFunc("/api/instances/", srv.routeInstances)
@@ -243,52 +248,6 @@ func (srv *Server) routeInstances(w http.ResponseWriter, r *http.Request) {
 		} else {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		}
-	case "clone":
-		srv.handleCloneInstance(w, r, name)
-	case "exec":
-		srv.handleExecInstance(w, r, name)
-	case "ssh-password":
-		if len(parts) == 2 {
-			srv.handleSSHPassword(w, r, name)
-		} else if len(parts) == 3 && parts[2] == "status" {
-			srv.handleSSHPasswordStatus(w, r, name)
-		} else if len(parts) == 3 && parts[2] == "disable" {
-			srv.handleSSHPasswordDisable(w, r, name)
-		} else {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
-		}
-	case "updates":
-		if len(parts) == 2 {
-			srv.handleGetInstanceUpdates(w, r, name)
-		} else if len(parts) == 3 && parts[2] == "run" {
-			srv.handleRunUpdates(w, r, name)
-		} else {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
-		}
-	case "mounts":
-		switch r.Method {
-		case http.MethodPost:
-			srv.handleMount(w, r, name)
-		case http.MethodDelete:
-			srv.handleUmount(w, r, name)
-		default:
-			methodNotAllowed(w)
-		}
-	case "snapshots":
-		if len(parts) == 2 {
-			switch r.Method {
-			case http.MethodGet:
-				srv.handleGetInstanceSnapshots(w, r, name)
-			case http.MethodPost:
-				srv.handleCreateSnapshot(w, r, name)
-			default:
-				methodNotAllowed(w)
-			}
-		} else {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
-		}
-	case "history":
-		srv.handleGetHistory(w, r, name)
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	}

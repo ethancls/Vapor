@@ -24,6 +24,9 @@ export default function Modal({
   title,
   size = 'md',
   onClose,
+  closeOnEsc = true,
+  closeOnOverlay = true,
+  showClose = true,
   footer,
   children,
   ariaLabelledBy,
@@ -46,6 +49,7 @@ export default function Modal({
 
     const onKeyDown = (e) => {
       if (e.key === 'Escape') {
+        if (!closeOnEsc) return
         e.preventDefault()
         onClose()
         return
@@ -82,7 +86,7 @@ export default function Modal({
       window.removeEventListener('keydown', onKeyDown)
       restoreFocusRef.current?.focus?.()
     }
-  }, [initialFocusRef, onClose])
+  }, [closeOnEsc, initialFocusRef, onClose])
 
   // Prevent body scroll
   useEffect(() => {
@@ -97,7 +101,7 @@ export default function Modal({
     <div
       ref={overlayRef}
       role="presentation"
-      onClick={e => { if (e.target === overlayRef.current) onClose() }}
+      onClick={e => { if (closeOnOverlay && e.target === overlayRef.current) onClose() }}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(0,0,0,0.72)',
@@ -149,21 +153,23 @@ export default function Modal({
           >
             {title}
           </h2>
-          <button
-            type="button"
-            aria-label="Close dialog"
-            onClick={onClose}
-            style={{
-              background: 'var(--card-2)', border: '1px solid var(--border)',
-              borderRadius: 8, padding: '5px 6px', cursor: 'pointer',
-              color: 'var(--text-secondary)', display: 'flex', alignItems: 'center',
-              transition: 'color 0.15s, border-color 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--border-hover)' }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-          >
-            <X size={15} />
-          </button>
+          {showClose && (
+            <button
+              type="button"
+              aria-label="Close dialog"
+              onClick={onClose}
+              style={{
+                background: 'var(--card-2)', border: '1px solid var(--border)',
+                borderRadius: 8, padding: '5px 6px', cursor: 'pointer',
+                color: 'var(--text-secondary)', display: 'flex', alignItems: 'center',
+                transition: 'color 0.15s, border-color 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--border-hover)' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
 
         {/* Divider */}

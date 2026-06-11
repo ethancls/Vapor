@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -24,8 +23,7 @@ import (
 var instanceNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}[a-z0-9]$`)
 
 var allowedActions = map[string]bool{
-	"start": true, "stop": true, "suspend": true,
-	"restart": true, "recover": true, "delete": true,
+	"stop": true, "delete": true,
 }
 
 // --- utility ---
@@ -81,11 +79,14 @@ func (srv *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	daemonOK := srv.mp.DaemonRunning(ctx)
+	system := srv.mp.SystemState(ctx)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":         "ok",
-		"daemon_running": daemonOK,
-		"ws_clients":     srv.hub.Count(),
+		"status":           "ok",
+		"daemon_running":   system.Running,
+		"container_system": system,
+		"install_required": !system.Installed,
+		"startup_required": system.Installed && !system.Running,
+		"ws_clients":       srv.hub.Count(),
 	})
 }
 
@@ -97,10 +98,9 @@ func (srv *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	_, data, err := srv.mp.RunJSONChecked(ctx, "version", nil, map[string]any{"--format": "json"})
+	_, data, err := srv.mp.RunJSONChecked(ctx, "system version", nil, map[string]any{"--format": "json"})
 	if err != nil {
-		// fallback to text
-		res, err2 := srv.mp.RunChecked(ctx, "version", nil, nil, "")
+		res, err2 := srv.mp.RunChecked(ctx, "system version", nil, nil, "")
 		if err2 != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err2.Error()})
 			return
@@ -206,32 +206,12 @@ func (srv *Server) handleImages(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	q := r.URL.Query()
-	opts := map[string]any{"--format": "json"}
-	if q.Get("show_unsupported") == "true" {
-		opts["--show-unsupported"] = true
-	}
-	if q.Get("only_images") == "true" {
-		opts["--only-images"] = true
-	}
-	if q.Get("only_blueprints") == "true" {
-		opts["--only-blueprints"] = true
-	}
-	if q.Get("force_update") == "true" {
-		opts["--force-update"] = true
-	}
-
-	var args []string
-	if s := q.Get("q"); s != "" {
-		args = []string{s}
-	}
-
-	_, data, err := srv.mp.RunJSONChecked(r.Context(), "find", args, opts)
+	items, err := srv.mp.ListImages(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"images": data})
+	writeJSON(w, http.StatusOK, map[string]any{"images": items})
 }
 
 // --- GET /api/networks ---
@@ -241,96 +221,12 @@ func (srv *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	_, data, err := srv.mp.RunJSONChecked(r.Context(), "networks", nil, map[string]any{"--format": "json"})
+	items, err := srv.mp.ListNetworks(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
-
-	// Build system interface map: name → {status, address, ipnet}
-	type ifaceInfo struct {
-		status  string
-		address string
-		ipnet   *net.IPNet
-	}
-	sysIfaces := map[string]ifaceInfo{}
-	if ifaces, err := net.Interfaces(); err == nil {
-		for _, iface := range ifaces {
-			info := ifaceInfo{status: "down"}
-			if iface.Flags&net.FlagUp != 0 {
-				info.status = "up"
-			}
-			addrs, _ := iface.Addrs()
-			for _, a := range addrs {
-				if ipnet, ok := a.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-					info.address = ipnet.String()
-					info.ipnet = ipnet
-					break
-				}
-			}
-			sysIfaces[iface.Name] = info
-		}
-	}
-
-	// Build instance IP → name map for subnet matching
-	instByIP := map[string]string{}
-	if instances, err := srv.mp.GetAllInstancesInfo(r.Context(), true); err == nil {
-		for _, inst := range instances {
-			name, _ := inst["name"].(string)
-			// ipv4 is []string (from toStringSlice in the multipass client)
-			if ipv4s, ok := inst["ipv4"].([]string); ok {
-				for _, ip := range ipv4s {
-					instByIP[ip] = name
-				}
-			}
-		}
-	}
-
-	var list []any
-	if dm, ok := data.(map[string]any); ok {
-		if raw, ok := dm["list"].([]any); ok {
-			for _, item := range raw {
-				m, ok := item.(map[string]any)
-				if !ok {
-					continue
-				}
-				enriched := map[string]any{}
-				for k, v := range m {
-					enriched[k] = v
-				}
-				ifName, _ := m["name"].(string)
-				sys, hasSys := sysIfaces[ifName]
-				if hasSys {
-					enriched["status"] = sys.status
-					enriched["address"] = sys.address
-				} else {
-					enriched["status"] = "unknown"
-					enriched["address"] = ""
-				}
-
-				// Match instances whose IPs fall within this network's subnet
-				var instances []string
-				if hasSys && sys.ipnet != nil {
-					seen := map[string]bool{}
-					for ip, instName := range instByIP {
-						if sys.ipnet.Contains(net.ParseIP(ip)) && !seen[instName] {
-							instances = append(instances, instName)
-							seen[instName] = true
-						}
-					}
-				}
-				if instances == nil {
-					instances = []string{}
-				}
-				enriched["instances"] = instances
-				list = append(list, enriched)
-			}
-		}
-	}
-	if list == nil {
-		list = []any{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"networks": list})
+	writeJSON(w, http.StatusOK, map[string]any{"networks": items})
 }
 
 // --- GET /api/instances ---
@@ -474,13 +370,15 @@ func (srv *Server) handleInstanceAction(w http.ResponseWriter, r *http.Request, 
 	// best-effort decode
 	json.NewDecoder(r.Body).Decode(&body) //nolint:errcheck
 
+	_ = body
 	opts := map[string]any{}
-	if action == "delete" && body.Purge {
-		opts["--purge"] = true
-	}
 
 	ctx := r.Context()
-	_, err := srv.mp.RunChecked(ctx, action, []string{name}, opts, "")
+	command := action
+	if action == "stop" || action == "delete" {
+		command = "machine " + action
+	}
+	_, err := srv.mp.RunChecked(ctx, command, []string{name}, opts, "")
 	if err != nil {
 		srv.logAction(action, name, "error", err.Error())
 		writeJSON(w, httpStatusFromError(err.Error()), map[string]string{"error": err.Error()})

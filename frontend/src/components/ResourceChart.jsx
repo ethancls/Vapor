@@ -12,7 +12,7 @@ const METRICS = [
 
 const ALL_VALUE = '__all__'
 const EMPTY_INSTANCES = []
-const SERIES_COLORS = ['#b5f23d', '#60a5fa', '#f472b6', '#fb923c', '#a78bfa', '#34d399', '#f87171', '#22d3ee', '#facc15', '#c084fc']
+const SERIES_COLORS = ['#6fa8ff', '#ff7bdc', '#8ec5ff', '#ffacd9', '#4f7cff', '#f472d0', '#67e8f9', '#f87171', '#facc15', '#c084fc']
 
 function SingleTooltip({ active, payload, label, unit }) {
   if (!active || !payload?.length) return null
@@ -197,8 +197,8 @@ export default function ResourceChart({ instances = EMPTY_INSTANCES }) {
           <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#b5f23d" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#b5f23d" stopOpacity={0} />
+                <stop offset="5%" stopColor="#6fa8ff" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#ff7bdc" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
@@ -212,7 +212,7 @@ export default function ResourceChart({ instances = EMPTY_INSTANCES }) {
             />
             <YAxis tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} />
             <Tooltip content={<SingleTooltip unit={metric.unit} />} />
-            <Area type="monotone" dataKey="value" stroke="#b5f23d" strokeWidth={2} fill="url(#grad)" dot={false} activeDot={{ r: 4, fill: '#b5f23d' }} />
+            <Area type="monotone" dataKey="value" stroke="#6fa8ff" strokeWidth={2} fill="url(#grad)" dot={false} activeDot={{ r: 4, fill: '#ff7bdc' }} />
           </AreaChart>
         </ResponsiveContainer>
       )}

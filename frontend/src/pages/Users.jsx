@@ -762,10 +762,10 @@ export default function Users() {
                       style={{
                         borderBottom: idx < sortedUsers.length - 1 ? '1px solid var(--border)' : 'none',
                         transition: 'background 0.1s',
-                        background: selected ? 'rgba(181,242,61,0.04)' : 'transparent',
+                        background: selected ? 'rgba(111,168,255,0.08)' : 'transparent',
                       }}
                       onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = 'rgba(255,255,255,0.018)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = selected ? 'rgba(181,242,61,0.04)' : 'transparent' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = selected ? 'rgba(111,168,255,0.08)' : 'transparent' }}
                     >
                       <td style={{ padding: '14px 10px 14px 14px' }}>
                         <InstancesCheckbox checked={selected} onChange={() => toggleSelect(u.id)} />

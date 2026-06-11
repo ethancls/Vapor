@@ -1,6 +1,6 @@
 # Eve
 
-Dashboard web pour gérer des VM Multipass (instances, snapshots, réseaux, templates, utilisateurs) avec backend Go et frontend React.
+Dashboard web pour gérer Apple Container sur macOS: containers, machines, images, registres, réseaux, volumes, builder, utilisateurs et commandes système.
 
 ## Authentification
 
@@ -20,9 +20,17 @@ Important:
 
 ## Prérequis
 
-- Linux/macOS avec Multipass installé
+- macOS Apple Silicon avec Apple Container installé
 - Go 1.22+
 - Node.js 18+
+
+Apple Container doit être installé depuis les releases officielles:
+
+```bash
+container system start
+```
+
+Si `container` n'est pas installé, Eve affiche les instructions d'installation. L'installation demande des droits administrateur macOS et n'est pas lancée silencieusement par Eve.
 
 ## Lancer en local (rapide)
 
@@ -39,6 +47,12 @@ go run .
 
 Puis ouvrir `http://localhost:8100`.
 
+Ou:
+
+```bash
+go run . --open
+```
+
 ## Mode développement (backend hot reload + frontend Vite)
 
 ```bash
@@ -54,7 +68,14 @@ Le frontend Vite proxy `/api`, `/auth`, `/ws` vers `localhost:8100`.
 
 ```bash
 make build
-./eve
+./eve --open
+```
+
+## Build app macOS
+
+```bash
+make macos-app
+open dist/Eve.app
 ```
 
 ## Installation systemd (prod)
@@ -98,9 +119,9 @@ Variables supportées (voir `internal/config/config.go`):
 | `EVE_BIND` | `0.0.0.0:8100` |
 | `EVE_SESSION_TTL` | `24h` |
 | `EVE_JWT_SECRET` | valeur interne par défaut (à changer en prod) |
-| `EVE_MULTIPASS_BINARY` | `multipass` |
-| `EVE_MULTIPASS_TIMEOUT` | `45s` |
-| `EVE_MULTIPASS_CONCURRENCY` | `6` |
+| `EVE_CONTAINER_BINARY` | `container` |
+| `EVE_CONTAINER_TIMEOUT` | `45s` |
+| `EVE_CONTAINER_CONCURRENCY` | `6` |
 | `EVE_INSTANCES_CACHE_TTL` | `2s` |
 | `EVE_POLL_INTERVAL` | `5s` |
 | `EVE_DB_PATH` | `eve.db` |

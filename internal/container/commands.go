@@ -1,72 +1,63 @@
 package container
 
+import "sort"
+
 var SupportedCommands = map[string]bool{
-	"alias":        true,
-	"aliases":      true,
-	"authenticate": true,
-	"clone":        true,
-	"delete":       true,
-	"exec":         true,
-	"find":         true,
-	"get":          true,
-	"help":         true,
-	"info":         true,
-	"launch":       true,
-	"list":         true,
-	"mount":        true,
-	"networks":     true,
-	"prefer":       true,
-	"purge":        true,
-	"recover":      true,
-	"restart":      true,
-	"restore":      true,
-	"set":          true,
-	"shell":        true,
-	"snapshot":     true,
-	"start":        true,
-	"stop":         true,
-	"suspend":      true,
-	"transfer":     true,
-	"umount":       true,
-	"unalias":      true,
-	"version":      true,
+	"build": true, "copy": true, "create": true, "delete": true, "exec": true,
+	"export": true, "inspect": true, "kill": true, "list": true, "logs": true,
+	"prune": true, "run": true, "start": true, "stats": true, "stop": true,
+
+	"image delete": true, "image inspect": true, "image list": true,
+	"image load": true, "image prune": true, "image pull": true,
+	"image push": true, "image save": true, "image tag": true,
+
+	"builder delete": true, "builder start": true, "builder status": true, "builder stop": true,
+
+	"network create": true, "network delete": true, "network inspect": true,
+	"network list": true, "network prune": true,
+
+	"volume create": true, "volume delete": true, "volume inspect": true,
+	"volume list": true, "volume prune": true,
+
+	"registry list": true, "registry login": true, "registry logout": true,
+
+	"machine create": true, "machine delete": true, "machine inspect": true,
+	"machine list": true, "machine logs": true, "machine run": true,
+	"machine set": true, "machine set-default": true, "machine stop": true,
+
+	"system df": true, "system logs": true, "system start": true, "system status": true,
+	"system stop": true, "system version": true,
+	"system dns create": true, "system dns delete": true, "system dns list": true,
+	"system kernel set": true, "system property list": true,
 }
 
 var MutatingCommands = map[string]bool{
-	"alias":        true,
-	"authenticate": true,
-	"clone":        true,
-	"delete":       true,
-	"launch":       true,
-	"mount":        true,
-	"prefer":       true,
-	"purge":        true,
-	"recover":      true,
-	"restart":      true,
-	"restore":      true,
-	"set":          true,
-	"snapshot":     true,
-	"start":        true,
-	"stop":         true,
-	"suspend":      true,
-	"transfer":     true,
-	"umount":       true,
-	"unalias":      true,
+	"build": true, "copy": true, "create": true, "delete": true, "exec": true,
+	"export": true, "kill": true, "prune": true, "run": true, "start": true, "stop": true,
+
+	"image delete": true, "image load": true, "image prune": true, "image pull": true,
+	"image push": true, "image save": true, "image tag": true,
+
+	"builder delete": true, "builder start": true, "builder stop": true,
+
+	"network create": true, "network delete": true, "network prune": true,
+
+	"volume create": true, "volume delete": true, "volume prune": true,
+
+	"registry login": true, "registry logout": true,
+
+	"machine create": true, "machine delete": true, "machine run": true,
+	"machine set": true, "machine set-default": true, "machine stop": true,
+
+	"system start": true, "system stop": true,
+	"system dns create": true, "system dns delete": true, "system kernel set": true,
 }
 
-// SortedCommands returns the list of supported commands sorted.
 func SortedCommands() []string {
 	result := make([]string, 0, len(SupportedCommands))
 	for cmd := range SupportedCommands {
 		result = append(result, cmd)
 	}
-	// simple sort
-	for i := 0; i < len(result); i++ {
-		for j := i + 1; j < len(result); j++ {
-			if result[i] > result[j] {
-				result[i], result[j] = result[j], result[i]
-			}
-		}
-	}
+	sort.Strings(result)
 	return result
 }

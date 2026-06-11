@@ -109,7 +109,7 @@ export default function CustomSelect({
           width: '100%', display: 'flex', alignItems: 'center', gap: 8,
           background: 'var(--card-2)',
           border: '1px solid',
-          borderColor: open ? 'rgba(181,242,61,0.4)' : 'var(--border)',
+          borderColor: open ? 'var(--focus-ring)' : 'var(--border)',
           borderRadius: 'var(--r-sm)',
           ...(!multi && controlHeight
             ? { height: controlHeight, padding: '0 12px' }

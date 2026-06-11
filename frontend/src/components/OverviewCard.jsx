@@ -38,7 +38,7 @@ export default function OverviewCard() {
             <div key={label} className="dashboard-overview-stat">
               <p className="dashboard-overview-stat-label">{label}</p>
               {isLoading ? (
-                <div style={{ width: '60%', height: 18, borderRadius: 4, background: 'rgba(181,242,61,0.15)', animation: 'skeleton-shimmer 2s ease-in-out infinite', backgroundSize: '200% auto', backgroundImage: 'linear-gradient(90deg, rgba(181,242,61,0.1) 25%, rgba(181,242,61,0.22) 50%, rgba(181,242,61,0.1) 75%)' }} />
+                <div style={{ width: '60%', height: 18, borderRadius: 4, background: 'rgba(111,168,255,0.15)', animation: 'skeleton-shimmer 2s ease-in-out infinite', backgroundSize: '200% auto', backgroundImage: 'linear-gradient(90deg, rgba(111,168,255,0.10) 25%, rgba(255,123,220,0.20) 50%, rgba(111,168,255,0.10) 75%)' }} />
               ) : (
                 <p className="mono dashboard-overview-stat-value">{value}</p>
               )}

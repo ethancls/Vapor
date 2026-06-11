@@ -1,438 +1,188 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Search, X, Table2, Grid3X3, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Download, Search, X, Trash2, Layers } from 'lucide-react'
+import { sileo } from 'sileo'
 import { api } from '../api/client'
+import ContainerDataTable from '../components/ContainerDataTable'
 import CustomSelect from '../components/CustomSelect'
-import { SkeletonTable, SkeletonCards } from '../components/Skeletons'
+import ConfirmModal from '../components/ConfirmModal'
+import BrandIcon from '../components/BrandIcon'
+import { SkeletonTable } from '../components/Skeletons'
 
-function safeEntries(input) {
-  if (!input) return []
-  if (Array.isArray(input)) {
-    return input
-      .map((item, index) => [String(item?.name || item?.image || item?.alias || item?.id || `item-${index}`), item])
-      .filter(([key]) => Boolean(key))
-  }
-  if (typeof input === 'object') return Object.entries(input)
-  return []
-}
+const EMPTY_IMAGES = []
+const EMPTY_RESULTS = []
 
-function parseVersionName(name) {
-  const match = /^(\d+)\.(\d+)$/.exec(String(name))
-  if (!match) return null
-  return { major: Number(match[1]), minor: Number(match[2]) }
-}
-
-function latestStableImageName(rawImages) {
-  let latest = null
-  for (const [name, meta] of rawImages) {
-    if (meta?.remote) continue
-    const version = parseVersionName(name)
-    if (!version) continue
-    if (!latest || version.major > latest.version.major || (version.major === latest.version.major && version.minor > latest.version.minor)) {
-      latest = { name, version }
-    }
-  }
-  return latest?.name || null
-}
-
-function groupFromItem(name, meta = {}) {
-  if (meta.remote === 'appliance' || name.startsWith('appliance:')) return 'Appliances'
-  if (meta.remote === 'daily' || name.startsWith('daily:')) return 'Daily'
-  if (name === 'core' || name.startsWith('core')) return 'Ubuntu Core'
-  return 'Images'
-}
-
-function getTag(name, meta = {}, latestName = null) {
-  const aliases = Array.isArray(meta.aliases) ? meta.aliases : []
-  const release = String(meta.release || '')
-  if (latestName && name === latestName) return 'latest'
-  if (/\blts\b/i.test(release) || aliases.includes('lts')) return 'lts'
-  if (meta.remote === 'daily' || name.startsWith('daily:')) return 'daily'
-  if (meta.remote === 'appliance' || name.startsWith('appliance:')) return 'app'
-  return ''
-}
-
-function getDescription(meta = {}) {
-  return [meta.os, meta.release].filter(Boolean).join(' ').trim()
-}
-
-function normalizeImages(payload) {
-  const catalog = payload && typeof payload === 'object' && payload.images ? payload.images : payload
-  if (!catalog || typeof catalog !== 'object') return { images: [], blueprints: [] }
-  const rawImages = safeEntries(catalog.images)
-  const rawBlueprints = safeEntries(catalog['blueprints (deprecated)'] || catalog.blueprints)
-  const latestName = latestStableImageName(rawImages)
-
-  const images = rawImages.map(([name, meta]) => ({
-    id: `img:${name}`,
-    name,
-    group: groupFromItem(name, meta),
-    description: getDescription(meta),
-    tag: getTag(name, meta, latestName),
-    aliases: Array.isArray(meta?.aliases) ? meta.aliases : [],
-    deprecated: false,
-  })).sort((a, b) => a.name.localeCompare(b.name))
-
-  const blueprints = rawBlueprints.map(([name, meta]) => ({
-    id: `bp:${name}`,
-    name,
-    group: 'Blueprints',
-    description: getDescription(meta),
-    tag: 'deprecated',
-    aliases: Array.isArray(meta?.aliases) ? meta.aliases : [],
-    deprecated: true,
-  })).sort((a, b) => a.name.localeCompare(b.name))
-
-  return { images, blueprints }
-}
-
-const TAG_COLORS = {
-  latest:     { bg: 'var(--accent-dim)', color: 'var(--accent)', border: 'var(--accent-border)' },
-  lts:        { bg: 'rgba(96,165,250,0.12)', color: '#60a5fa', border: 'rgba(96,165,250,0.22)' },
-  daily:      { bg: 'rgba(251,146,60,0.12)', color: '#fb923c', border: 'rgba(251,146,60,0.22)' },
-  app:        { bg: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: 'rgba(167,139,250,0.22)' },
-  deprecated: { bg: 'rgba(255,68,68,0.08)', color: 'var(--stopped)', border: 'rgba(255,68,68,0.25)' },
-}
-
-function TagBadge({ tag }) {
-  if (!tag) return null
-  const cfg = TAG_COLORS[tag] || TAG_COLORS.legacy
+function imageName(item) {
+  const name = item.name || '-'
   return (
-    <span style={{
-      fontSize: 10, background: cfg.bg, color: cfg.color,
-      border: `1px solid ${cfg.border}`, borderRadius: 5, padding: '2px 6px',
-      fontWeight: 700, whiteSpace: 'nowrap',
-    }}>
-      {tag}
-    </span>
-  )
-}
-
-const TABLE_COLUMNS = [
-  { key: 'name',        label: 'Name'        },
-  { key: 'group',       label: 'Category'    },
-  { key: 'description', label: 'Description' },
-  { key: 'tag',         label: 'Tag'         },
-  { key: null,          label: 'Aliases'     },
-]
-const MOBILE_TABLE_BREAKPOINT = '(max-width: 900px)'
-
-function defaultImagesViewMode() {
-  if (typeof window === 'undefined') return 'table'
-  return window.matchMedia(MOBILE_TABLE_BREAKPOINT).matches ? 'cards' : 'table'
-}
-
-const SKEL_COLS = [
-  { w: 100 },
-  { w: 70  },
-  { w: 180 },
-  { w: 44, pill: true },
-  { w: 120 },
-]
-
-function SortTh({ col, sort, onSort, children }) {
-  const active = sort.key === col.key
-  const Icon = active ? (sort.dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown
-  return (
-    <th
-      onClick={() => col.key && onSort(col.key)}
-      style={{
-        padding: '12px 18px', textAlign: 'left',
-        fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap',
-        color: active ? 'var(--accent)' : 'var(--text-secondary)',
-        textTransform: 'uppercase', letterSpacing: '0.08em',
-        cursor: col.key ? 'pointer' : 'default', userSelect: 'none',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        {children}
-        {col.key && <Icon size={11} style={{ opacity: active ? 1 : 0.4, flexShrink: 0 }} />}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ 
+        width: 28, height: 28, borderRadius: 6, background: 'var(--card-2)', 
+        display: 'flex', alignItems: 'center', justifyContent: 'center', 
+        border: '1px solid var(--border)', flexShrink: 0 
+      }}>
+        <BrandIcon name={name} type="image" size={16} />
       </div>
-    </th>
-  )
-}
-
-function TableView({ images }) {
-  const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
-
-  function toggleSort(key) {
-    setSort((s) => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
-  }
-
-  const sorted = [...images].sort((a, b) => {
-    const av = a[sort.key] || ''
-    const bv = b[sort.key] || ''
-    const cmp = String(av).localeCompare(String(bv))
-    return sort.dir === 'asc' ? cmp : -cmp
-  })
-
-  return (
-    <div className="instances-table-shell" style={{ background: 'var(--card-1)', borderRadius: 'var(--r-card)', border: '1px solid var(--border)', overflow: 'visible' }}>
-      <div className="instances-table-scroll no-scrollbar" style={{ overflowX: 'auto', overflowY: 'visible' }}>
-        <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {TABLE_COLUMNS.map((col) => (
-                <SortTh key={col.label} col={col} sort={sort} onSort={toggleSort}>{col.label}</SortTh>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.length === 0 && (
-              <tr>
-                <td colSpan={5} style={{ padding: '34px 18px', textAlign: 'center' }}>
-                  <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>No images</span>
-                </td>
-              </tr>
-            )}
-            {sorted.map((item, idx) => (
-              <tr
-                key={item.id}
-                style={{ borderBottom: idx < sorted.length - 1 ? '1px solid var(--border)' : 'none', transition: 'background 0.1s' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.018)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-              >
-                <td style={{ padding: '13px 18px' }}>
-                  <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{item.name}</span>
-                </td>
-                <td style={{ padding: '13px 18px' }}>
-                  <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{item.group}</span>
-                </td>
-                <td style={{ padding: '13px 18px', maxWidth: 300 }}>
-                  <span className="mono" style={{
-                    fontSize: 11.5, color: 'var(--text-secondary)',
-                    display: 'inline-block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%',
-                  }}>
-                    {item.description || '—'}
-                  </span>
-                </td>
-                <td style={{ padding: '13px 18px' }}>
-                  <TagBadge tag={item.tag} />
-                </td>
-                <td style={{ padding: '13px 18px' }}>
-                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                    {item.aliases.slice(0, 4).map((alias) => (
-                      <span
-                        key={`${item.id}-${alias}`}
-                        className="mono"
-                        style={{
-                          fontSize: 10.5,
-                          color: 'var(--accent)',
-                          background: 'var(--accent-dim)',
-                          border: '1px solid var(--accent-border)',
-                          borderRadius: 999,
-                          padding: '2px 7px',
-                          lineHeight: 1,
-                        }}
-                      >
-                        {alias}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <span className="mono" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{name}</span>
     </div>
   )
 }
 
-function CardsView({ images }) {
-  return (
-    <div className="instances-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: 12 }}>
-      {images.map((item) => (
-        <div
-          key={item.id}
-          className="card"
-          style={{ padding: 16, transition: 'border-color 0.18s, background 0.18s', boxSizing: 'border-box', height: '100%' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(181,242,61,0.22)'; e.currentTarget.style.background = 'var(--card-2)' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--card-1)' }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start', marginBottom: 14 }}>
-            <p className="mono" style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 700, lineHeight: 1, margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {item.name}
-            </p>
-            {item.tag && <TagBadge tag={item.tag} />}
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
-            <div className="stat-cell">
-              <span className="stat-label">Category</span>
-              <span className="mono stat-value" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{item.group}</span>
-            </div>
-            <div className="stat-cell">
-              <span className="stat-label">Aliases</span>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
-                {item.aliases.length === 0
-                  ? <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
-                  : item.aliases.slice(0, 4).map(alias => (
-                    <span key={alias} className="mono" style={{
-                      fontSize: 10.5,
-                      color: 'var(--accent)',
-                      background: 'var(--accent-dim)',
-                      border: '1px solid var(--accent-border)',
-                      borderRadius: 999,
-                      padding: '2px 7px',
-                      lineHeight: 1,
-                    }}>{alias}</span>
-                  ))
-                }
-              </div>
-            </div>
-          </div>
+function imageTag(item) {
+  return item.tag || '-'
+}
 
-          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-            <p className="section-label" style={{ marginBottom: 7 }}>Description</p>
-            <p className="mono" style={{ fontSize: 11.5, color: item.description ? 'var(--text-secondary)' : 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
-              {item.description || '—'}
-            </p>
-          </div>
-
-        </div>
-      ))}
-    </div>
-  )
+function imageSize(item) {
+  return item.size || '-'
 }
 
 export default function Images() {
+  const qc = useQueryClient()
   const [query, setQuery] = useState('')
-  const [groupFilter, setGroupFilter] = useState('all')
-  const [viewMode, setViewMode] = useState(defaultImagesViewMode)
-  const [showDeprecated, setShowDeprecated] = useState(false)
+  const [provider, setProvider] = useState('dockerhub')
+  const [registryQuery, setRegistryQuery] = useState('ubuntu')
+  const [deleteImage, setDeleteImage] = useState(null)
 
-  const imagesQuery = useQuery({
-    queryKey: ['images-catalog'],
-    queryFn: () => api.getImages(),
-    staleTime: 5 * 60 * 1000,
+  const localImagesQuery = useQuery({
+    queryKey: ['images-local'],
+    queryFn: () => api.getLocalImages(),
+    refetchInterval: 15000,
+    retry: false,
   })
 
-  const { images, blueprints } = useMemo(() => normalizeImages(imagesQuery.data), [imagesQuery.data])
-  const entries = useMemo(() => showDeprecated ? [...images, ...blueprints] : images, [images, blueprints, showDeprecated])
-  const groups = useMemo(() => [...new Set(entries.map((item) => item.group))].sort(), [entries])
-  const groupOptions = useMemo(
-    () => [{ value: 'all', label: 'All categories' }, ...groups.map((g) => ({ value: g, label: g }))],
-    [groups],
-  )
+  const registryQueryResult = useQuery({
+    queryKey: ['registry-search', provider, registryQuery],
+    queryFn: () => api.searchRegistry(provider, registryQuery),
+    enabled: Boolean(registryQuery.trim()),
+    staleTime: 60000,
+    retry: false,
+  })
 
-  const filtered = useMemo(() => {
+  const localImages = localImagesQuery.data?.images || EMPTY_IMAGES
+  const filteredLocal = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return entries.filter((item) => {
-      if (groupFilter !== 'all' && item.group !== groupFilter) return false
-      if (!q) return true
-      return [item.name, item.description, item.group, item.aliases.join(' '), item.tag].join(' ').toLowerCase().includes(q)
+    if (!q) return localImages
+    const match = (item) => {
+      const n = (item.name || '').toLowerCase()
+      const t = (item.tag || '').toLowerCase()
+      return n.includes(q) || t.includes(q)
+    }
+    return localImages.filter(match)
+  }, [localImages, query])
+
+  async function pull(image) {
+    const promise = api.imageAction({ action: 'pull', image }).then(() => qc.invalidateQueries({ queryKey: ['images-local'] }))
+    sileo.promise(promise, {
+      loading: { title: `Pulling ${image}` },
+      success: { title: `Pulled ${image}` },
+      error: (e) => ({ title: e.message }),
     })
-  }, [entries, query, groupFilter])
+    await promise
+  }
+
+  async function removeImage(image) {
+    const promise = api.imageAction({ action: 'delete', image }).then(() => qc.invalidateQueries({ queryKey: ['images-local'] }))
+    sileo.promise(promise, {
+      loading: { title: `Deleting ${image}` },
+      success: { title: `Deleted ${image}` },
+      error: (e) => ({ title: e.message }),
+    })
+    await promise
+  }
 
   return (
     <div className="page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
+      <div className="instances-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h1 className="page-title">Images</h1>
         </div>
       </div>
 
-      <div className="instances-controls" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
-        <div className="instances-state-filters" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: '1 1 280px' }}>
-          {imagesQuery.isLoading ? (
-            <span className="skeleton" style={{ display: 'inline-block', width: 62, height: 20, borderRadius: 999 }} />
-          ) : (
-            <span className="filter-pill active" style={{ cursor: 'default' }}>
-              All
-              <span className="pill-count">{entries.length}</span>
-            </span>
-          )}
-        </div>
-        {blueprints.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowDeprecated(v => !v)}
-            className="btn-ghost"
-            style={{
-              height: 36, fontSize: 12,
-              color: showDeprecated ? 'var(--stopped)' : 'var(--text-secondary)',
-              borderColor: showDeprecated ? 'rgba(255,68,68,0.3)' : undefined,
-            }}
-          >
-            {showDeprecated ? 'Hide deprecated' : 'Show deprecated items'}
-          </button>
-        )}
-        <div className="instances-controls-right" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginLeft: 'auto' }}>
-          <div className="instances-search-control" style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            background: 'var(--card-2)', border: '1px solid var(--border)',
-            borderRadius: 'var(--r-sm)', padding: '0 10px', height: 36,
-            width: 'clamp(150px, 22vw, 220px)',
-          }}>
-            <Search size={12} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-            <input
-              className="mono"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search images..."
-              style={{
-                background: 'none', border: 'none', outline: 'none',
-                color: 'var(--text-primary)', fontSize: 12,
-                width: '100%',
-              }}
-            />
-            {query && (
-              <button onClick={() => setQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
-                <X size={11} />
-              </button>
-            )}
+      <section style={{ marginBottom: 40 }}>
+        <div className="instances-controls" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+          <div className="instances-state-filters" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: '1 1 280px' }}>
+            <button className="filter-pill active" type="button">Local <span className="pill-count">{localImages.length}</span></button>
           </div>
-
-          <CustomSelect
-            value={groupFilter}
-            onChange={setGroupFilter}
-            options={groupOptions}
-            controlHeight={36}
-            style={{ minWidth: 160, width: 'clamp(160px, 24vw, 240px)' }}
-          />
-
-          <div className="instances-view-toggle" style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', overflow: 'hidden', height: 36 }}>
-            {[
-              { mode: 'table', Icon: Table2,  title: 'Table view' },
-              { mode: 'cards', Icon: Grid3X3, title: 'Cards view' },
-            ].map((item) => (
-              <button
-                key={item.mode}
-                type="button"
-                aria-label={item.title}
-                className="btn-ghost"
-                onClick={() => setViewMode(item.mode)}
-                style={{
-                  border: 'none', borderRadius: 0, height: '100%', padding: '0 12px',
-                  background: viewMode === item.mode ? 'var(--accent-dim)' : 'transparent',
-                  color: viewMode === item.mode ? 'var(--accent)' : 'var(--text-secondary)',
-                }}
-              >
-                <item.Icon size={13} />
-              </button>
-            ))}
+          <div className="instances-search-control" style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '0 10px', height: 36, minWidth: 260, background: 'var(--card-1)' }}>
+            <Search size={14} color="var(--text-muted)" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search local images..." style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: 'var(--text-primary)', fontSize: 13 }} />
+            {query && <button type="button" onClick={() => setQuery('')} style={{ background: 'none', border: 0, color: 'var(--text-muted)', cursor: 'pointer' }}><X size={14} /></button>}
           </div>
         </div>
-      </div>
 
-      {imagesQuery.isLoading ? (
-        viewMode === 'table' ? (
-          <SkeletonTable cols={SKEL_COLS} rows={8} minWidth={720} />
+        {localImagesQuery.isLoading ? (
+          <SkeletonTable cols={[{ w: 180 }, { w: 120 }, { w: 80 }]} rows={3} />
         ) : (
-          <SkeletonCards count={12} minCardWidth={200} />
-        )
-      ) : filtered.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: 32 }}>
-          <p className="mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            {query.trim() ? `No images match "${query}"` : 'No images available'}
-          </p>
+          <ContainerDataTable
+            items={filteredLocal}
+            empty="No local images"
+            columns={[
+              { key: 'name', label: 'Image', accent: false, render: imageName },
+              { key: 'tag', label: 'Tag / Digest', render: imageTag },
+              { key: 'size', label: 'Size', render: imageSize },
+            ]}
+            renderActions={(item) => {
+              const name = item.name
+              return (
+                <div style={{ display: 'inline-flex', gap: 5 }}>
+                  <button className="icon-btn danger" title="Delete image" onClick={() => setDeleteImage(name)}><Trash2 size={14} /></button>
+                </div>
+              )
+            }}
+          />
+        )}
+
+      </section>
+
+      <section>
+        <div className="instances-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+             <Layers size={18} color="var(--text-secondary)" />
+             <p className="section-title" style={{ margin: 0 }}>Registry Search</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <CustomSelect
+              value={provider}
+              onChange={setProvider}
+              options={[
+                { value: 'dockerhub', label: 'Docker Hub' },
+                { value: 'ghcr', label: 'GHCR' },
+              ]}
+              controlHeight={38}
+              style={{ width: 150 }}
+            />
+            <input className="input" value={registryQuery} onChange={(e) => setRegistryQuery(e.target.value)} placeholder={provider === 'ghcr' ? 'owner/image' : 'Search images'} style={{ width: 260 }} />
+          </div>
         </div>
-      ) : viewMode === 'table' ? (
-        <TableView images={filtered} />
-      ) : (
-        <CardsView images={filtered} />
+        {registryQueryResult.error && <p className="mono" style={{ color: 'var(--stopped)', marginBottom: 12 }}>{registryQueryResult.error.message}</p>}
+        <ContainerDataTable
+          items={registryQueryResult.data?.results || EMPTY_RESULTS}
+          empty={registryQuery.trim() ? 'No registry images' : 'Search Docker Hub or GHCR'}
+          columns={[
+            { key: 'name', label: 'Name', accent: true, render: (item) => item.image || item.repo_name || item.name },
+            { key: 'short_description', label: 'Description', render: (item) => item.short_description || item.description || '-' },
+            { key: 'star_count', label: 'Stars' },
+            { key: 'pull_count', label: 'Pulls' },
+          ]}
+          renderActions={(item) => {
+            const ref = item.image || item.repo_name || item.name
+            return <button className="icon-btn" title="Pull image" onClick={() => pull(ref)}><Download size={14} /></button>
+          }}
+        />
+      </section>
+
+      {deleteImage && (
+        <ConfirmModal
+          title={`Delete Image`}
+          description={`Are you sure you want to delete ${deleteImage}? This will permanently remove the local image.`}
+          confirmLabel="Delete"
+          variant="confirm"
+          onClose={() => setDeleteImage(null)}
+          onConfirm={() => removeImage(deleteImage).finally(() => setDeleteImage(null))}
+        />
       )}
     </div>
   )
 }
+

@@ -2,6 +2,7 @@
 eve
 eve-linux-*
 eve-macos-*
+dist/
 tmp/
 
 # Frontend build output

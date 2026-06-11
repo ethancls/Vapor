@@ -1,20 +1,21 @@
 import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronLeft, TriangleAlert } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import Sidebar from './components/Sidebar'
+import ContainerSystemNotice from './components/ContainerSystemNotice'
 import MobileTopbar from './components/MobileTopbar'
 import MobileNavDrawer from './components/MobileNavDrawer'
 import GuidedTour from './components/GuidedTour'
 import { useStats } from './hooks/useStats'
 import useMediaQuery from './hooks/useMediaQuery'
 import Dashboard from './pages/Dashboard'
+import Containers from './pages/Containers'
 import Instances from './pages/Instances'
-import NewInstance from './pages/NewInstance'
-import InstanceDetails from './pages/InstanceDetails'
-import Snapshots from './pages/Snapshots'
-import Updates from './pages/Updates'
 import Networks from './pages/Networks'
 import Images from './pages/Images'
+import Volumes from './pages/Volumes'
+import Builder from './pages/Builder'
+import Commands from './pages/Commands'
 import Users from './pages/Users'
 import Logs from './pages/Logs'
 import Settings from './pages/Settings'
@@ -28,13 +29,15 @@ function routeTitle(pathname) {
   if (!pathname) return ''
   const path = pathname.split('?')[0].split('#')[0]
   if (path === '/dashboard' || path === '/') return 'Dashboard'
-  if (path === '/instances') return 'Instances'
-  if (path === '/instances/new') return 'New Instance'
-  if (path.startsWith('/instances/')) return decodeURIComponent(path.slice('/instances/'.length)) || 'Instance'
-  if (path === '/snapshots') return 'Snapshots'
-  if (path === '/updates') return 'Updates'
+  if (path === '/containers') return 'Containers'
+  if (path === '/instances') return 'Machines'
+  if (path === '/instances/new') return 'New Machine'
+  if (path.startsWith('/instances/')) return decodeURIComponent(path.slice('/instances/'.length)) || 'Machine'
   if (path === '/networks') return 'Networks'
   if (path === '/images') return 'Images'
+  if (path === '/volumes') return 'Volumes'
+  if (path === '/builder') return 'Builder'
+  if (path === '/commands') return 'Commands'
   if (path === '/users') return 'Users'
   if (path === '/logs') return 'Activity'
   if (path === '/settings') return 'Settings'
@@ -84,7 +87,7 @@ function AppInner({ onLogout }) {
   })
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const goNewInstance = useCallback(
-    () => navigate('/instances/new', { state: { from: location.pathname } }),
+    () => navigate('/containers', { state: { from: location.pathname } }),
     [navigate, location.pathname]
   )
 
@@ -110,13 +113,15 @@ function AppInner({ onLogout }) {
     if (!pathname) return ''
     const path = pathname.split('?')[0].split('#')[0]
     if (path === '/dashboard') return 'Dashboard'
-    if (path === '/instances') return 'Instances'
-    if (path === '/instances/new') return 'New Instance'
-    if (path.startsWith('/instances/')) return 'Instances'
-    if (path === '/snapshots') return 'Snapshots'
-    if (path === '/updates') return 'Updates'
+    if (path === '/containers') return 'Containers'
+    if (path === '/instances') return 'Machines'
+    if (path === '/instances/new') return 'New Machine'
+    if (path.startsWith('/instances/')) return 'Machines'
     if (path === '/networks') return 'Networks'
     if (path === '/images') return 'Images'
+    if (path === '/volumes') return 'Volumes'
+    if (path === '/builder') return 'Builder'
+    if (path === '/commands') return 'Commands'
     if (path === '/users') return 'Users'
     if (path === '/logs') return 'Activity'
     if (path === '/settings') return 'Settings'
@@ -144,15 +149,12 @@ function AppInner({ onLogout }) {
       else if (shortcutKey === 'd') { e.preventDefault(); navigate('/dashboard', { state: { from: location.pathname } }) }
       else if (shortcutKey === 'n') { e.preventDefault(); goNewInstance() }
       else if (shortcutKey === 'i') { e.preventDefault(); navigate('/instances', { state: { from: location.pathname } }) }
-      else if (shortcutKey === 's') { e.preventDefault(); navigate('/snapshots', { state: { from: location.pathname } }) }
-      else if (shortcutKey === 'u') { e.preventDefault(); navigate('/updates', { state: { from: location.pathname } }) }
     }
     document.addEventListener('keydown', fn, true)
     return () => document.removeEventListener('keydown', fn, true)
   }, [toggleSidebar, goNewInstance, navigate, location.pathname])
 
-  const { data: stats, isError: statsError } = useStats()
-  const daemonOk = !statsError && (stats?.daemon_running ?? true)
+  useStats()
   const sidebarCollapsed = !isMobile && collapsed
   return (
     <>
@@ -193,14 +195,7 @@ function AppInner({ onLogout }) {
       )}
 
       <main id="main-content" className={`main-content${isMobile ? ' main-content-mobile' : ''}`}>
-        {!daemonOk && (
-          <div className="daemon-alert-wrap">
-            <div className="daemon-alert">
-              <TriangleAlert size={15} className="daemon-alert-icon" />
-              <span>Multipass daemon is not responding, please restart it</span>
-            </div>
-          </div>
-        )}
+        <ContainerSystemNotice />
         {backTarget && !isMobile && (
           <div className="global-back-link-wrap">
             <Link
@@ -216,13 +211,15 @@ function AppInner({ onLogout }) {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard onNewInstance={goNewInstance} />} />
+          <Route path="/containers" element={<Containers />} />
           <Route path="/instances" element={<Instances onNewInstance={goNewInstance} />} />
-          <Route path="/instances/new" element={<NewInstance />} />
-          <Route path="/instances/:name" element={<InstanceDetails />} />
-          <Route path="/snapshots" element={<Snapshots />} />
-          <Route path="/updates" element={<Updates />} />
+          <Route path="/instances/new" element={<Navigate to="/instances" replace />} />
+          <Route path="/instances/:name" element={<Navigate to="/instances" replace />} />
           <Route path="/networks" element={<Networks />} />
           <Route path="/images" element={<Images />} />
+          <Route path="/volumes" element={<Volumes />} />
+          <Route path="/builder" element={<Builder />} />
+          <Route path="/commands" element={<Commands />} />
           <Route path="/users" element={<Users />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/settings" element={<Settings />} />

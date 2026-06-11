@@ -62,9 +62,9 @@ export default function ShellPanel({ name, isRunning }) {
       theme: {
         background:   '#0c0c0c',
         foreground:   '#d4d4d4',
-        cursor:       '#b5f23d',
+        cursor:       '#6fa8ff',
         cursorAccent: '#0c0c0c',
-        selectionBackground: 'rgba(181,242,61,0.2)',
+        selectionBackground: 'rgba(111,168,255,0.20)',
         black:   '#000000', brightBlack:   '#666666',
         red:     '#ff5555', brightRed:     '#ff6e67',
         green:   '#50fa7b', brightGreen:   '#5af78e',

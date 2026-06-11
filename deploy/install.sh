@@ -18,12 +18,12 @@ generate_jwt_secret() {
   date +%s | sha256sum | awk '{print $1}'
 }
 
-# 1. Check multipass
-if ! command -v multipass &>/dev/null; then
-  echo "ERROR: multipass is not in PATH. Install it first: snap install multipass"
+# 1. Check Apple Container
+if ! command -v container &>/dev/null; then
+  echo "ERROR: Apple Container is not in PATH. Install it from https://github.com/apple/container/releases"
   exit 1
 fi
-echo "✓ multipass found: $(multipass version | head -1)"
+echo "✓ container found: $(container system version | head -1)"
 
 # 2. Detect current user (must not be root)
 if [ "$(id -u)" = "0" ]; then
@@ -65,7 +65,7 @@ if [ ! -f "$ENV_FILE" ]; then
 EVE_BIND=0.0.0.0:8100
 EVE_SESSION_TTL=24h
 EVE_LOG_LEVEL=info
-EVE_MULTIPASS_BINARY=multipass
+EVE_CONTAINER_BINARY=container
 EVE_JWT_SECRET=$JWT_SECRET
 EVE_DB_PATH=$DB_DIR/eve.db
 EVE_ACTIVITY_RETENTION=5000

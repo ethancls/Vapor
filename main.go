@@ -6,9 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
+
 	"github.com/user/eve/internal/api"
 	"github.com/user/eve/internal/config"
 	"github.com/user/eve/internal/container"
@@ -20,6 +23,13 @@ import (
 var frontendFS embed.FS
 
 func main() {
+	openBrowser := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--open" || arg == "serve --open" {
+			openBrowser = true
+		}
+	}
+
 	cfg := config.Load()
 
 	// Logger
@@ -120,6 +130,15 @@ func main() {
 		}
 	}()
 
+	if openBrowser {
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			if err := exec.Command("open", browserURL(cfg.Bind)).Start(); err != nil {
+				logger.Warn("failed to open browser", "err", err)
+			}
+		}()
+	}
+
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -130,4 +149,15 @@ func main() {
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutCancel()
 	httpSrv.Shutdown(shutCtx)
+}
+
+func browserURL(bind string) string {
+	host := bind
+	if idx := strings.LastIndex(bind, ":"); idx >= 0 {
+		host = bind[idx+1:]
+	}
+	if host == "" {
+		host = "8100"
+	}
+	return "http://127.0.0.1:" + host
 }

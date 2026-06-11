@@ -64,9 +64,9 @@ export default function CostEstimator({ instances }) {
       {/* Breakdown legend */}
       <div className="dashboard-cost-breakdown">
         {[
-          { label: `${totalCpus} vCPU`,                cost: cpuCostHr,  color: '#b5f23d' },
-          { label: `${totalRamGb.toFixed(1)} GB RAM`,  cost: ramCostHr,  color: '#60a5fa' },
-          { label: `${totalDiskGb.toFixed(0)} GB Disk`,cost: diskCostHr, color: '#a78bfa' },
+          { label: `${totalCpus} vCPU`,                cost: cpuCostHr,  color: '#6fa8ff' },
+          { label: `${totalRamGb.toFixed(1)} GB RAM`,  cost: ramCostHr,  color: '#ff7bdc' },
+          { label: `${totalDiskGb.toFixed(0)} GB Disk`,cost: diskCostHr, color: '#8ec5ff' },
         ].map(({ label, cost, color }) => (
           <div key={label} className="dashboard-cost-breakdown-item">
             <div className="dashboard-cost-breakdown-dot" style={{ background: color }} />
@@ -82,8 +82,8 @@ export default function CostEstimator({ instances }) {
         <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#b5f23d" stopOpacity={0.18} />
-              <stop offset="95%" stopColor="#b5f23d" stopOpacity={0} />
+              <stop offset="5%"  stopColor="#6fa8ff" stopOpacity={0.18} />
+              <stop offset="95%" stopColor="#ff7bdc" stopOpacity={0} />
             </linearGradient>
           </defs>
           <XAxis
@@ -98,15 +98,15 @@ export default function CostEstimator({ instances }) {
           />
           <Tooltip
             contentStyle={{ background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 11, fontFamily: 'IBM Plex Mono', color: 'var(--text-primary)' }}
-            itemStyle={{ color: '#b5f23d' }}
+            itemStyle={{ color: '#6fa8ff' }}
             formatter={v => [`$${Number(v).toFixed(2)}`, 'cumulative']}
             labelStyle={{ color: 'var(--text-secondary)', marginBottom: 2 }}
             cursor={{ stroke: 'var(--border-hover)', strokeWidth: 1 }}
           />
           <Area
             type="monotone" dataKey="cost"
-            stroke="#b5f23d" strokeWidth={1.5}
-            fill="url(#costGrad)" dot={false} activeDot={{ r: 3, fill: '#b5f23d', strokeWidth: 0 }}
+            stroke="#6fa8ff" strokeWidth={1.5}
+            fill="url(#costGrad)" dot={false} activeDot={{ r: 3, fill: '#ff7bdc', strokeWidth: 0 }}
           />
         </AreaChart>
       </ResponsiveContainer>

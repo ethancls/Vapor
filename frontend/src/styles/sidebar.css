@@ -204,7 +204,7 @@
   flex: 1;
 }
 .sidebar-new-instance-button {
-  background: var(--accent-fill);
+  background: var(--accent);
   border: none;
   border-radius: 10px;
   width: 100%;

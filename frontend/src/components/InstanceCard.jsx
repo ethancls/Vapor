@@ -112,7 +112,7 @@ export default function InstanceCard({ instance }) {
       <div
         className="card"
         style={{ position: 'relative', transition: 'border-color 0.18s, background 0.18s', height: '100%', boxSizing: 'border-box' }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(181,242,61,0.22)'; e.currentTarget.style.background='var(--card-2)' }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor='var(--accent-border)'; e.currentTarget.style.background='var(--card-2)' }}
         onMouseLeave={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.background='var(--card-1)' }}
       >
         {/* Header */}

@@ -2,15 +2,16 @@ import { lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
 import { useInstances } from '../hooks/useInstances'
 import OverviewCard from '../components/OverviewCard'
-import InstanceCard from '../components/InstanceCard'
 import ActivityFeed from '../components/ActivityFeed'
 import SearchBar from '../components/SearchBar'
 import { Plus } from 'lucide-react'
+import InstanceStateBadge from '../components/instances/InstanceStateBadge'
+import BrandIcon from '../components/BrandIcon'
 
 const ResourceChart  = lazy(() => import('../components/ResourceChart'))
 const CostEstimator  = lazy(() => import('../components/CostEstimator'))
 
-const DIST_COLORS = ['#b5f23d', '#60a5fa', '#f472b6', '#fb923c', '#a78bfa', '#67e8f9', '#f87171', '#34d399']
+const DIST_COLORS = ['#6fa8ff', '#ff7bdc', '#8ec5ff', '#ffacd9', '#4f7cff', '#f472d0', '#67e8f9', '#f87171']
 
 function SkeletonCard() {
   return (
@@ -29,6 +30,38 @@ function SkeletonCard() {
   )
 }
 
+function MachineCard({ machine }) {
+  return (
+    <div
+      className="card"
+      style={{ position: 'relative', transition: 'border-color 0.18s, background 0.18s', height: '100%', boxSizing: 'border-box' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.background = 'var(--card-2)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--card-1)' }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+            <BrandIcon name={machine.name} type="machine" size={16} />
+            <p className="mono" style={{ fontWeight: 600, fontSize: 14, lineHeight: 1, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {machine.name}
+            </p>
+          </div>
+          <InstanceStateBadge state={machine.state} />
+        </div>
+      </div>
+      <div className="stat-cell" style={{ marginBottom: 10 }}>
+        <span className="stat-label">Kernel / Image</span>
+        <span className="mono stat-value" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{machine.image || '-'}</span>
+      </div>
+      <div className="stat-cell">
+        <span className="stat-label">CPUs</span>
+        <span className="stat-value">{machine.cpus || '-'}</span>
+      </div>
+    </div>
+  )
+}
+
+
 export default function Dashboard({ onNewInstance }) {
   const { instances, isLoading } = useInstances()
 
@@ -45,7 +78,7 @@ export default function Dashboard({ onNewInstance }) {
         <div className="dashboard-header-actions">
           <SearchBar fluid triggerLabel="Search" controlHeight={40} tourId="dashboard-search" />
           <button className="btn-accent dashboard-new-btn" data-tour="new-instance-primary" onClick={onNewInstance}>
-            <Plus size={13} /> New Instance
+            <Plus size={13} /> New Container
           </button>
         </div>
       </div>
@@ -59,7 +92,7 @@ export default function Dashboard({ onNewInstance }) {
         <div className="dashboard-main-instances">
           {/* Header: title + See all on left, nav buttons on right */}
           <div className="dashboard-instances-head">
-            <p className="section-title">My Instances</p>
+            <p className="section-title">Machines</p>
             <Link className="dashboard-see-all" to="/instances">
               See all ({instances.length})
             </Link>
@@ -71,13 +104,13 @@ export default function Dashboard({ onNewInstance }) {
             </div>
           ) : instances.length === 0 ? (
             <div className="dashboard-empty-state">
-              <p className="dashboard-empty-state-text">No instances yet</p>
-              <button className="btn-accent" onClick={onNewInstance}><Plus size={13} /> Launch first VM</button>
+              <p className="dashboard-empty-state-text">No machines yet</p>
+              <button className="btn-accent" onClick={onNewInstance}><Plus size={13} /> New Container</button>
             </div>
           ) : (
             <div className="dashboard-instances-grid">
               {instances.slice(0, 3).map(inst => (
-                <InstanceCard key={inst.name} instance={inst} />
+                <MachineCard key={inst.name} machine={inst} />
               ))}
             </div>
           )}

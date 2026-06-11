@@ -5,7 +5,7 @@ GO_BIN := $(strip $(if $(GO_GOBIN),$(GO_GOBIN),$(GO_GOPATH)/bin))
 PATH_EXT := $(GO_BIN)
 SERVICE_USER ?= $(shell id -un)
 
-.PHONY: dev build run install uninstall service-status logs
+.PHONY: dev build run macos-app install uninstall service-status logs
 
 ## Hot reload: Go backend (air) + frontend Vite HMR en parallèle
 dev:
@@ -32,6 +32,9 @@ build:
 ## Lance le binaire de prod
 run: build
 	./eve
+
+macos-app:
+	./scripts/package-macos.sh
 
 install:
 	@if command -v systemctl >/dev/null 2>&1; then \

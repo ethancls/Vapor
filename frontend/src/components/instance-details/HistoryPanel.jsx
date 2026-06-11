@@ -60,8 +60,8 @@ export default function HistoryPanel({ history = EMPTY_HISTORY }) {
           <AreaChart data={chartData} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="inst-grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#b5f23d" stopOpacity={0.24} />
-                <stop offset="95%" stopColor="#b5f23d" stopOpacity={0.01} />
+                <stop offset="5%" stopColor="#6fa8ff" stopOpacity={0.24} />
+                <stop offset="95%" stopColor="#ff7bdc" stopOpacity={0.01} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
@@ -75,7 +75,7 @@ export default function HistoryPanel({ history = EMPTY_HISTORY }) {
             />
             <YAxis tick={{ fill: '#444', fontSize: 10, fontFamily: 'IBM Plex Mono' }} tickLine={false} axisLine={false} />
             <Tooltip content={<ChartTooltip unit={metric.unit} />} />
-            <Area type="monotone" dataKey="value" stroke="#b5f23d" strokeWidth={2} fill="url(#inst-grad)" dot={false} />
+            <Area type="monotone" dataKey="value" stroke="#6fa8ff" strokeWidth={2} fill="url(#inst-grad)" dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       )}

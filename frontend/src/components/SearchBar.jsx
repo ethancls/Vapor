@@ -646,7 +646,7 @@ export default function SearchBar({ fluid = false, triggerLabel = 'Search…', c
           <span
             className="badge global-search-result-badge"
             style={{
-              background: entry.badge === 'Running' ? 'rgba(181,242,61,0.1)' : entry.badge === 'Stopped' ? 'rgba(240,71,71,0.1)' : 'rgba(255,159,10,0.1)',
+              background: entry.badge === 'Running' ? 'rgba(111,168,255,0.12)' : entry.badge === 'Stopped' ? 'rgba(240,71,71,0.1)' : 'rgba(255,159,10,0.1)',
               color: badgeColor,
               border: `1px solid ${badgeColor}33`,
             }}
