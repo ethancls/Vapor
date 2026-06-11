@@ -8,11 +8,17 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// handleShellWS handles /ws/instances/{name}/shell.
+// handleShellWS handles /ws/instances/{name}/shell and /ws/containers/{name}/shell.
 // If ?session=<id> is provided, it tries to re-attach to that shell session.
 // Otherwise, a new shell session is created.
 func (srv *Server) handleShellWS(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/ws/instances/")
+	kind := "instance"
+	prefix := "/ws/instances/"
+	if strings.HasPrefix(r.URL.Path, "/ws/containers/") {
+		kind = "container"
+		prefix = "/ws/containers/"
+	}
+	path := strings.TrimPrefix(r.URL.Path, prefix)
 	parts := strings.SplitN(path, "/", 2)
 	if len(parts) != 2 || parts[1] != "shell" || parts[0] == "" {
 		http.NotFound(w, r)
@@ -27,7 +33,7 @@ func (srv *Server) handleShellWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	requestedSessionID := strings.TrimSpace(r.URL.Query().Get("session"))
-	sess, err := srv.shells.getOrCreate(sessionUser.ID, name, requestedSessionID)
+	sess, err := srv.shells.getOrCreate(sessionUser.ID, kind, name, requestedSessionID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -44,6 +50,7 @@ func (srv *Server) handleShellWS(w http.ResponseWriter, r *http.Request) {
 		"type":     "session",
 		"id":       sess.ID(),
 		"instance": name,
+		"kind":     kind,
 	}); err != nil {
 		return
 	}

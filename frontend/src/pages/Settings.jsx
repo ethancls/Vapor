@@ -19,15 +19,15 @@ function parseVersion(v) {
   if (!v) return '—'
   if (typeof v === 'string') return v.trim()
   if (typeof v === 'object') {
-    const mp = v.multipass || v.multipassd || Object.values(v)[0]
-    return typeof mp === 'string' ? mp.trim() : JSON.stringify(v)
+    const app = v.container || v['container-apiserver'] || v.multipass || v.multipassd || Object.values(v)[0]
+    return typeof app === 'string' ? app.trim() : JSON.stringify(v)
   }
   return String(v)
 }
 
 const SETTINGS_TABS = [
   { value: 'system',     label: 'System' },
-  { value: 'multipass',  label: 'Multipass' },
+  { value: 'multipass',  label: 'Apple Container' },
   { value: 'auth',       label: 'Auth' },
   { value: 'shortcuts',  label: 'Shortcuts' },
 ]
@@ -53,13 +53,13 @@ function SystemSection() {
   const hostQuery = useQuery({ queryKey: ['system-host'], queryFn: () => api.getHostInfo(), staleTime: 60000 })
   const healthQuery = useQuery({ queryKey: ['health'], queryFn: () => api.getHealth(), refetchInterval: 15000 })
 
-  const mpVersion = parseVersion(versionQuery.data?.version)
+  const containerVersion = parseVersion(versionQuery.data?.version)
   const host = hostQuery.data || {}
   const health = healthQuery.data || {}
   const loading = versionQuery.isLoading || hostQuery.isLoading
 
   const rows = [
-    { label: 'Multipass version', value: mpVersion },
+    { label: 'Apple Container version', value: containerVersion },
     { label: 'Host vCPUs', value: host.cpus ? `${host.cpus} cores` : '—' },
     { label: 'Host memory', value: fmtRam(host.memory_mb) },
     { label: 'Daemon', value: health.daemon_running ? 'Running' : 'Offline', color: health.daemon_running ? 'var(--running)' : 'var(--stopped)' },

@@ -31,6 +31,7 @@ type shellSessionManager struct {
 type shellSession struct {
 	id       string
 	ownerID  string
+	kind     string
 	instance string
 
 	cmd  *exec.Cmd
@@ -95,20 +96,26 @@ func (m *shellSessionManager) get(id string) (*shellSession, bool) {
 	return sess, ok
 }
 
-func (m *shellSessionManager) getOrCreate(ownerID, instance, requestedID string) (*shellSession, error) {
+func (m *shellSessionManager) getOrCreate(ownerID, kind, instance, requestedID string) (*shellSession, error) {
 	requestedID = strings.TrimSpace(requestedID)
 	if requestedID != "" {
 		if sess, ok := m.get(requestedID); ok {
-			if sess.matches(ownerID, instance) && !sess.isClosed() {
+			if sess.matches(ownerID, kind, instance) && !sess.isClosed() {
 				return sess, nil
 			}
 		}
 	}
-	return m.create(ownerID, instance)
+	return m.create(ownerID, kind, instance)
 }
 
-func (m *shellSessionManager) create(ownerID, instance string) (*shellSession, error) {
-	cmd := exec.Command("multipass", "shell", instance) //nolint:gosec
+func (m *shellSessionManager) create(ownerID, kind, instance string) (*shellSession, error) {
+	var cmd *exec.Cmd
+	switch kind {
+	case "container":
+		cmd = exec.Command("container", "exec", instance, "sh") //nolint:gosec
+	default:
+		cmd = exec.Command("multipass", "shell", instance) //nolint:gosec
+	}
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		return nil, err
@@ -117,6 +124,7 @@ func (m *shellSessionManager) create(ownerID, instance string) (*shellSession, e
 	sess := &shellSession{
 		id:       uuid.NewString(),
 		ownerID:  ownerID,
+		kind:     kind,
 		instance: instance,
 		cmd:      cmd,
 		ptmx:     ptmx,
@@ -134,8 +142,8 @@ func (m *shellSessionManager) create(ownerID, instance string) (*shellSession, e
 
 func (s *shellSession) ID() string { return s.id }
 
-func (s *shellSession) matches(ownerID, instance string) bool {
-	return s.ownerID == ownerID && s.instance == instance
+func (s *shellSession) matches(ownerID, kind, instance string) bool {
+	return s.ownerID == ownerID && s.kind == kind && s.instance == instance
 }
 
 func (s *shellSession) isClosed() bool {

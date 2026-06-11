@@ -309,17 +309,26 @@ func (c *Client) BuilderStatus(ctx context.Context) (any, string, error) {
 }
 
 func (c *Client) Inspect(ctx context.Context, command, name string) (map[string]any, error) {
-	_, raw, err := c.RunJSONChecked(ctx, command, []string{name}, map[string]any{"--format": "json"})
-	if err != nil {
+	res, raw, err := c.RunJSONChecked(ctx, command, []string{name}, map[string]any{"--format": "json"})
+	if err == nil {
+		if m, ok := raw.(map[string]any); ok {
+			return m, nil
+		}
+		if list := normalizeJSONList(raw); len(list) > 0 {
+			return list[0], nil
+		}
+		return map[string]any{}, nil
+	}
+
+	res, textErr := c.RunChecked(ctx, command, []string{name}, nil, "")
+	if textErr != nil {
 		return nil, err
 	}
-	if m, ok := raw.(map[string]any); ok {
-		return m, nil
-	}
-	if list := normalizeJSONList(raw); len(list) > 0 {
-		return list[0], nil
-	}
-	return map[string]any{}, nil
+	return map[string]any{
+		"name": name,
+		"text": res.Stdout,
+		"raw":  res.Stdout,
+	}, nil
 }
 
 func (c *Client) GetAllInstancesInfo(ctx context.Context, useCache bool) ([]map[string]any, error) {

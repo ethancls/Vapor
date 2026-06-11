@@ -10,7 +10,9 @@ import { useStats } from './hooks/useStats'
 import useMediaQuery from './hooks/useMediaQuery'
 import Dashboard from './pages/Dashboard'
 import Containers from './pages/Containers'
+import ContainerDetails from './pages/ContainerDetails'
 import Instances from './pages/Instances'
+import MachineDetails from './pages/MachineDetails'
 import Networks from './pages/Networks'
 import Images from './pages/Images'
 import Volumes from './pages/Volumes'
@@ -30,6 +32,7 @@ function routeTitle(pathname) {
   const path = pathname.split('?')[0].split('#')[0]
   if (path === '/dashboard' || path === '/') return 'Dashboard'
   if (path === '/containers') return 'Containers'
+  if (path.startsWith('/containers/')) return decodeURIComponent(path.slice('/containers/'.length)) || 'Container'
   if (path === '/instances') return 'Machines'
   if (path === '/instances/new') return 'New Machine'
   if (path.startsWith('/instances/')) return decodeURIComponent(path.slice('/instances/'.length)) || 'Machine'
@@ -105,6 +108,7 @@ function AppInner({ onLogout }) {
   const fallbackFrom = (() => {
     if (currentPath === '/instances/new') return '/instances'
     if (currentPath.startsWith('/instances/')) return '/instances'
+    if (currentPath.startsWith('/containers/')) return '/containers'
     return null
   })()
   const backTarget = explicitFrom && explicitFrom !== currentPath ? explicitFrom : fallbackFrom
@@ -114,6 +118,7 @@ function AppInner({ onLogout }) {
     const path = pathname.split('?')[0].split('#')[0]
     if (path === '/dashboard') return 'Dashboard'
     if (path === '/containers') return 'Containers'
+    if (path.startsWith('/containers/')) return 'Containers'
     if (path === '/instances') return 'Machines'
     if (path === '/instances/new') return 'New Machine'
     if (path.startsWith('/instances/')) return 'Machines'
@@ -212,9 +217,10 @@ function AppInner({ onLogout }) {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard onNewInstance={goNewInstance} />} />
           <Route path="/containers" element={<Containers />} />
+          <Route path="/containers/:name" element={<ContainerDetails />} />
           <Route path="/instances" element={<Instances onNewInstance={goNewInstance} />} />
           <Route path="/instances/new" element={<Navigate to="/instances" replace />} />
-          <Route path="/instances/:name" element={<Navigate to="/instances" replace />} />
+          <Route path="/instances/:name" element={<MachineDetails />} />
           <Route path="/networks" element={<Networks />} />
           <Route path="/images" element={<Images />} />
           <Route path="/volumes" element={<Volumes />} />

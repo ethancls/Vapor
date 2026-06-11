@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Search, X, FileText, Square, Trash2, Info } from 'lucide-react'
+import { Search, X, FileText, Play, Square, Trash2, Info, ArrowUpRight } from 'lucide-react'
 import { sileo } from 'sileo'
 import { api } from '../api/client'
 import ContainerDataTable from '../components/ContainerDataTable'
@@ -11,22 +12,9 @@ import { SkeletonTable } from '../components/Skeletons'
 
 const EMPTY_MACHINES = []
 
-function machineName(item) {
-  const name = item.name || item.id || item.raw?.name || '-'
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ 
-        width: 28, height: 28, borderRadius: 6, background: 'var(--card-2)', 
-        display: 'flex', alignItems: 'center', justifyContent: 'center', 
-        border: '1px solid var(--border)', flexShrink: 0 
-      }}>
-        <BrandIcon name={name} type="machine" size={16} />
-      </div>
-      <span className="mono" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{name}</span>
-    </div>
-  )
+function machineNameText(item) {
+  return item.name || item.id || item.raw?.name || '-'
 }
-
 
 function machineState(item) {
   return item.state || item.status || item.raw?.state || item.raw?.status || '-'
@@ -38,6 +26,7 @@ function machineImage(item) {
 
 export default function Instances() {
   const qc = useQueryClient()
+  const location = useLocation()
   const [query, setQuery] = useState('')
   const [filterState, setFilterState] = useState('All')
   const [logsFor, setLogsFor] = useState(null)
@@ -65,7 +54,7 @@ export default function Instances() {
     }
     const q = query.trim().toLowerCase()
     if (!q) return list
-    return list.filter((item) => [machineName(item), machineState(item), machineImage(item)].join(' ').toLowerCase().includes(q))
+    return list.filter((item) => [machineNameText(item), machineState(item), machineImage(item)].join(' ').toLowerCase().includes(q))
   }, [machines, query, filterState])
 
   async function runMachineAction(name, action, title) {
@@ -133,19 +122,41 @@ export default function Instances() {
           items={filteredMachines}
           empty={query.trim() ? `No machines match "${query}"` : 'No machines'}
           columns={[
-            { key: 'name', label: 'Name', accent: false, render: machineName },
+            {
+              key: 'name',
+              label: 'Name',
+              accent: false,
+              render: (item) => {
+                const name = machineNameText(item)
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--card-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', flexShrink: 0 }}>
+                      <BrandIcon name={name} type="machine" size={16} />
+                    </div>
+                    <Link to={`/instances/${encodeURIComponent(name)}`} state={{ from: location.pathname }} className="mono" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {name}
+                    </Link>
+                    <Link to={`/instances/${encodeURIComponent(name)}`} state={{ from: location.pathname }} aria-label={`Open ${name}`} style={{ color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+                      <ArrowUpRight size={13} />
+                    </Link>
+                  </div>
+                )
+              },
+            },
             { key: 'state', label: 'State', render: machineState },
             { key: 'image', label: 'Kernel / Image', render: machineImage },
             { key: 'cpus', label: 'CPUs' },
             { key: 'created', label: 'Created' },
           ]}
           renderActions={(item) => {
-            const name = item.name || item.id || item.raw?.name
+            const name = machineNameText(item)
+            const state = machineState(item)
             return (
               <div style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
+                {state !== 'Running' && <button className="icon-btn" title="Run" onClick={() => runMachineAction(name, 'run', `Started ${name}`)}><Play size={14} /></button>}
+                {state === 'Running' && <button className="icon-btn" title="Stop" onClick={() => runMachineAction(name, 'stop', `Stopped ${name}`)}><Square size={14} /></button>}
                 <button className="icon-btn" title="Inspect" onClick={() => setInspectMachine(name)}><Info size={14} /></button>
                 <button className="icon-btn" title="Logs" onClick={() => setLogsFor(name)}><FileText size={14} /></button>
-                <button className="icon-btn" title="Stop" onClick={() => runMachineAction(name, 'stop', `Stopped ${name}`)}><Square size={14} /></button>
                 <button className="icon-btn danger" title="Delete" onClick={() => setDeleteName(name)}><Trash2 size={14} /></button>
               </div>
             )

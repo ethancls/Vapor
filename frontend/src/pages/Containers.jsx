@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Play, Square, Skull, Trash2, FileText, X } from 'lucide-react'
+import { Plus, Search, Play, Square, Skull, Trash2, FileText, X, ArrowUpRight } from 'lucide-react'
 import { sileo } from 'sileo'
 import { api } from '../api/client'
 import ContainerDataTable from '../components/ContainerDataTable'
@@ -11,22 +12,9 @@ import { SkeletonTable } from '../components/Skeletons'
 
 const EMPTY_CONTAINERS = []
 
-function displayName(item) {
-  const name = item.name || item.id || item.raw?.name || item.raw?.id || '-'
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ 
-        width: 28, height: 28, borderRadius: 6, background: 'var(--card-2)', 
-        display: 'flex', alignItems: 'center', justifyContent: 'center', 
-        border: '1px solid var(--border)', flexShrink: 0 
-      }}>
-        <BrandIcon name={name} type="container" size={16} />
-      </div>
-      <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{name}</span>
-    </div>
-  )
+function displayNameText(item) {
+  return item.name || item.id || item.raw?.name || item.raw?.id || '-'
 }
-
 
 function displayImage(item) {
   return item.image || item.raw?.image || item.raw?.configuration?.image?.reference || '-'
@@ -38,6 +26,7 @@ function displayState(item) {
 
 export default function Containers() {
   const qc = useQueryClient()
+  const location = useLocation()
   const [query, setQuery] = useState('')
   const [filterState, setFilterState] = useState('All')
   const [newOpen, setNewOpen] = useState(false)
@@ -60,7 +49,7 @@ export default function Containers() {
     }
     const q = query.trim().toLowerCase()
     if (!q) return list
-    return list.filter((item) => [displayName(item), displayImage(item), displayState(item)].join(' ').toLowerCase().includes(q))
+    return list.filter((item) => [displayNameText(item), displayImage(item), displayState(item)].join(' ').toLowerCase().includes(q))
   }, [containers, query, filterState])
 
   async function runAction(name, action, title) {
@@ -120,18 +109,40 @@ export default function Containers() {
           items={filtered}
           empty={query ? `No containers match "${query}"` : 'No containers'}
           columns={[
-            { key: 'name', label: 'Name', accent: false, render: displayName },
+            {
+              key: 'name',
+              label: 'Name',
+              accent: false,
+              render: (item) => {
+                const name = displayNameText(item)
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--card-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', flexShrink: 0 }}>
+                      <BrandIcon name={name} type="container" size={16} />
+                    </div>
+                    <Link to={`/containers/${encodeURIComponent(name)}`} state={{ from: location.pathname }} className="mono" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {name}
+                    </Link>
+                    <Link to={`/containers/${encodeURIComponent(name)}`} state={{ from: location.pathname }} aria-label={`Open ${name}`} style={{ color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+                      <ArrowUpRight size={13} />
+                    </Link>
+                  </div>
+                )
+              },
+            },
             { key: 'state', label: 'State', render: displayState },
             { key: 'image', label: 'Image', render: displayImage, maxWidth: 360 },
             { key: 'created', label: 'Created' },
           ]}
           renderActions={(item) => {
-            const name = item.name || item.id || item.raw?.name || item.raw?.id
+            const name = displayNameText(item)
+            const state = displayState(item)
+            const isRunning = String(state).toLowerCase() === 'running'
             return (
               <div style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
-                <button className="icon-btn" title="Start" onClick={() => runAction(name, 'start', `Started ${name}`)}><Play size={14} /></button>
-                <button className="icon-btn" title="Stop" onClick={() => runAction(name, 'stop', `Stopped ${name}`)}><Square size={14} /></button>
-                <button className="icon-btn" title="Kill" onClick={() => runAction(name, 'kill', `Killed ${name}`)}><Skull size={14} /></button>
+                {!isRunning && <button className="icon-btn" title="Start" onClick={() => runAction(name, 'start', `Started ${name}`)}><Play size={14} /></button>}
+                {isRunning && <button className="icon-btn" title="Stop" onClick={() => runAction(name, 'stop', `Stopped ${name}`)}><Square size={14} /></button>}
+                {isRunning && <button className="icon-btn" title="Kill" onClick={() => runAction(name, 'kill', `Killed ${name}`)}><Skull size={14} /></button>}
                 <button className="icon-btn" title="Logs" onClick={() => setLogsFor(name)}><FileText size={14} /></button>
                 <button className="icon-btn danger" title="Delete" onClick={() => setDeleteName(name)}><Trash2 size={14} /></button>
               </div>

@@ -3,7 +3,13 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 
-export default function ShellPanel({ name, isRunning }) {
+export default function ShellPanel({
+  name,
+  isRunning,
+  wsBase = '/ws/instances',
+  resourceLabel = 'Instance',
+  storageKeyPrefix = 'eve-shell-session',
+}) {
   const containerRef = useRef(null)
   const termRef      = useRef(null)
   const wsRef        = useRef(null)
@@ -12,7 +18,7 @@ export default function ShellPanel({ name, isRunning }) {
   const closingRef = useRef(false)
   const [status, setStatus] = useState('connecting') // 'connecting' | 'open' | 'closed' | 'error'
   const [errMsg, setErrMsg] = useState('')
-  const storageKey = `eve-shell-session:${name}`
+  const storageKey = `${storageKeyPrefix}:${name}`
 
   function getStoredSessionID() {
     try {
@@ -91,7 +97,7 @@ export default function ShellPanel({ name, isRunning }) {
     if (existingSessionID) {
       params.set('session', existingSessionID)
     }
-    const wsUrl = `${proto}//${window.location.host}/ws/instances/${encodeURIComponent(name)}/shell${params.toString() ? `?${params.toString()}` : ''}`
+    const wsUrl = `${proto}//${window.location.host}${wsBase}/${encodeURIComponent(name)}/shell${params.toString() ? `?${params.toString()}` : ''}`
 
     const ws = new WebSocket(wsUrl)
     ws.binaryType = 'arraybuffer'
@@ -196,10 +202,10 @@ export default function ShellPanel({ name, isRunning }) {
         borderRadius: 14, padding: '40px 24px', textAlign: 'center',
       }}>
         <p className="mono" style={{ fontSize: 13, color: 'var(--stopped)', marginBottom: 8 }}>
-          Instance is not running
+          {resourceLabel} is not running
         </p>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          Start the instance to access its shell.
+          Start the {resourceLabel.toLowerCase()} to access its shell.
         </p>
       </div>
     )

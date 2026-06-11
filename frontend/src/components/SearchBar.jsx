@@ -235,7 +235,7 @@ function mapSettingsEntries(data) {
 
   const tabLabel = {
     system: 'System',
-    multipass: 'Multipass',
+    multipass: 'Apple Container',
     auth: 'Auth',
     shortcuts: 'Shortcuts',
   }
